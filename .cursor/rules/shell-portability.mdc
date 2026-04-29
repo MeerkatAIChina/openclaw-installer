@@ -1,0 +1,16 @@
+---
+description: Shell 跨平台可移植约束（Linux/macOS）
+globs:
+  - "**/*.sh"
+alwaysApply: false
+---
+
+# Shell Portability Guard
+
+- 需要 POSIX 可移植时使用 `#!/usr/bin/env sh`。
+- 需要 Bash 特性时使用 `#!/usr/bin/env bash`，并写明 Bash 依赖。
+- `sh` 脚本禁止使用 Bashism（如 `[[ ]]`、数组、`<<<`、`local` 依赖）。
+- 默认使用 `printf`，避免依赖 `echo -e` 行为差异。
+- 默认使用 `command -v` 做命令探测，禁止 `which`。
+- 对文件名通配结果优先使用 `./*` 形式，避免前导 `-` 误判为参数。
+- 对外部命令选项优先短参数，避免 GNU-only 长参数破坏 macOS/BSD 兼容。

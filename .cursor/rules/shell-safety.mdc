@@ -1,0 +1,17 @@
+---
+description: Shell 脚本安全基线（bash/sh）
+globs:
+  - "**/*.sh"
+alwaysApply: false
+---
+
+# Shell Safety Baseline
+
+- 脚本第一行必须是 shebang，且与目标 shell 一致。
+- Bash 脚本默认包含 `set -euo pipefail`。
+- 所有变量展开默认使用双引号：`"${var}"`。
+- 禁止使用 `eval`，除非用户明确要求并给出理由。
+- 所有错误信息输出到 `stderr`（`>&2`）。
+- 涉及临时文件时必须使用 `trap` 做清理。
+- 函数内变量默认 `local`，避免污染全局。
+- 参数必须先校验，参数不足时打印 usage 并退出非零。

@@ -1,0 +1,16 @@
+---
+description: PowerShell 脚本安全基线（ps1）
+globs:
+  - "**/*.ps1"
+alwaysApply: false
+---
+
+# PowerShell Safety Baseline
+
+- 禁止 `Invoke-Expression`。
+- 禁止明文密码、明文 token、硬编码凭据。
+- 不使用 `-Username` + `-Password` 明文组合，优先 `PSCredential`。
+- 避免硬编码 `-ComputerName` 目标。
+- 避免别名，使用完整 cmdlet 名称。
+- 参数优先显式命名，避免位置参数造成歧义。
+- 涉及状态变更命令时实现 `ShouldProcess`（支持 `-WhatIf` / `-Confirm`）。

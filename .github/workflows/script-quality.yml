@@ -1,0 +1,51 @@
+name: script-quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  shell-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt devscripts
+      - name: Run shellcheck
+        run: |
+          files=$(git ls-files '*.sh')
+          if [ -n "$files" ]; then
+            shellcheck $files
+          fi
+      - name: Run shfmt
+        run: |
+          files=$(git ls-files '*.sh')
+          if [ -n "$files" ]; then
+            shfmt -d $files
+          fi
+      - name: Run checkbashisms
+        run: |
+          files=$(git ls-files '*.sh')
+          if [ -n "$files" ]; then
+            checkbashisms $files
+          fi
+
+  powershell-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path . -Recurse -Filter *.ps1 | Select-Object -ExpandProperty FullName
+          if ($files.Count -gt 0) {
+            Invoke-ScriptAnalyzer -Path $files -Recurse -EnableExit
+          }

@@ -1,0 +1,16 @@
+---
+description: PowerShell 风格与函数结构约束
+globs:
+  - "**/*.ps1"
+alwaysApply: false
+---
+
+# PowerShell Style Baseline
+
+- 函数使用 `Verb-Noun` 命名。
+- 函数默认使用 `[CmdletBinding()]` 和 `param()`。
+- 参数使用 `[Parameter()]` 与必要的验证属性。
+- 默认 4 空格缩进，不使用 Tab。
+- 避免行尾分号。
+- 避免反引号续行，优先括号与 splatting。
+- 公共接口命名使用 PascalCase。
