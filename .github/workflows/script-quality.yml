@@ -47,5 +47,7 @@ jobs:
         run: |
           $files = Get-ChildItem -Path . -Recurse -Filter *.ps1 | Select-Object -ExpandProperty FullName
           if ($files.Count -gt 0) {
-            Invoke-ScriptAnalyzer -Path $files -Recurse -EnableExit
+            foreach ($file in $files) {
+              Invoke-ScriptAnalyzer -Path $file -EnableExit
+            }
           }
