@@ -63,4 +63,4 @@ jobs:
           Install-Module -Name Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck
       - name: Run Pester
         shell: pwsh
-        run: Invoke-Pester -Path ./tests -CI
+        run: Invoke-Pester -Path ./windows/tests -CI

@@ -1,6 +1,6 @@
 BeforeAll {
-    $repoRoot = Split-Path $PSScriptRoot -Parent
-    . (Join-Path $repoRoot "windows\path-utils.ps1")
+    $windowsRoot = Split-Path $PSScriptRoot -Parent
+    . (Join-Path $windowsRoot "node\path-utils.ps1")
     $script:backupUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 }
 

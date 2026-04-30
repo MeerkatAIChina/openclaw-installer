@@ -1,6 +1,6 @@
 # Windows 版本的脚本使用说明
 
-## 关于 `node-installer.ps1` 的安装说明
+## 关于 `windows/node/node-installer.ps1` 的安装说明
 
 ### 安装原理
 

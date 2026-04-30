@@ -8,8 +8,9 @@
 - 补充关键逻辑的简明注释。
 
 ### 变更文件
-- `windows/node-installer.ps1`
-- `windows/node-uninstaller.ps1`
+- `windows/node/node-installer.ps1`
+- `windows/node/node-uninstaller.ps1`
+- `windows/node/path-utils.ps1`
 - `windows/README.md`
 
 ### 审计检查项

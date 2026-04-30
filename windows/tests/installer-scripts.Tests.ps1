@@ -1,8 +1,8 @@
 BeforeAll {
-    $repoRoot = Split-Path $PSScriptRoot -Parent
-    $script:InstallerPs1 = Join-Path $repoRoot "windows\node-installer.ps1"
-    $script:UninstallerPs1 = Join-Path $repoRoot "windows\node-uninstaller.ps1"
-    $script:PathUtilsPs1 = Join-Path $repoRoot "windows\path-utils.ps1"
+    $windowsRoot = Split-Path $PSScriptRoot -Parent
+    $script:InstallerPs1 = Join-Path $windowsRoot "node\node-installer.ps1"
+    $script:UninstallerPs1 = Join-Path $windowsRoot "node\node-uninstaller.ps1"
+    $script:PathUtilsPs1 = Join-Path $windowsRoot "node\path-utils.ps1"
 }
 
 Describe "Installer scripts parse and expose expected structure" {
