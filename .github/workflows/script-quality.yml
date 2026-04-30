@@ -51,3 +51,16 @@ jobs:
               Invoke-ScriptAnalyzer -Path $file -EnableExit
             }
           }
+
+  pester-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck
+      - name: Run Pester
+        shell: pwsh
+        run: Invoke-Pester -Path ./tests -CI
