@@ -18,8 +18,8 @@ $ErrorActionPreference = "Stop"
 # 安装流程总览（主入口：Main）
 # 0 前置       — 横幅、PowerShell 执行策略（否则 npm 脚本报错）
 # 1 Node.js    — 1.1 检测版本 ≥22；1.2 缺失则 winget → choco → scoop 安装；1.3 设置 npm registry 镜像
-# （以下步骤代码暂注释，后续启用：）
 # 2 Git        — 2.1 检测；2.2 缺失则 winget 安装（git 安装模式为硬性依赖）
+# （以下步骤代码暂注释，解冻步骤 3、4 时启用：）
 # 3 OpenClaw   — 3.1 npm：全局 npm 包；3.2 git：克隆/更新仓库 + pnpm 构建 + 本地 wrapper
 # 4 收尾       — 将 npm global prefix 写入用户 PATH；可选提示 onboard
 # -----------------------------------------------------------------------------
@@ -81,7 +81,8 @@ function Ensure-ExecutionPolicy {
             Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -ErrorAction Stop
             Write-Host "已将当前进程的执行策略设置为 RemoteSigned" -Level success
             return $true
-        } catch {
+        }
+        catch {
             Write-Host "无法自动设置执行策略" -Level error
             Write-Host ""
             Write-Host "要解决这个问题，请运行:" -Level info
@@ -104,7 +105,8 @@ function Get-NodeVersion {
         if ($version) {
             return $version -replace '^v', ''
         }
-    } catch { }
+    }
+    catch { }
     return $null
 }
 
@@ -115,7 +117,8 @@ function Get-NpmVersion {
         if ($version) {
             return $version
         }
-    } catch { }
+    }
+    catch { }
     return $null
 }
 
@@ -145,10 +148,11 @@ function Install-Node {
         try {
             winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
             # Refresh PATH
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
             Write-Host "   winget 安装 Node.js 成功" -Level success
             return $true
-        } catch {
+        }
+        catch {
             Write-Host "  Winget 安装失败: $_" -Level warn
         }
     }
@@ -159,10 +163,11 @@ function Install-Node {
         Write-Host "  使用 Chocolatey 安装 Node.js..." -Level info
         try {
             choco install nodejs-lts -y 2>&1 | Out-Null
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
             Write-Host "   Chocolatey 安装 Node.js 成功" -Level success
             return $true
-        } catch {
+        }
+        catch {
             Write-Host "   Chocolatey 安装 Node.js 失败: $_" -Level warn
         }
     }
@@ -173,10 +178,11 @@ function Install-Node {
         Write-Host "  使用 Scoop 安装 Node.js..." -Level info
         try {
             scoop install nodejs-lts 2>&1 | Out-Null
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
             Write-Host "   Scoop 安装 Node.js 成功" -Level success
             return $true
-        } catch {
+        }
+        catch {
             Write-Host "   Scoop 安装 Node.js 失败: $_" -Level warn
         }
     }
@@ -206,7 +212,6 @@ function Set-NpmRegistryMirror {
     Write-Host "npm 下载源设置成功" -Level success
 }
 
-<#
 # --- 2. Git ---
 
 # 检测 git 是否在 PATH 中（返回 git --version 文本或 $null）
@@ -216,27 +221,29 @@ function Get-GitVersion {
         if ($version) {
             return $version
         }
-    } catch { }
+    }
+    catch { }
     return $null
 }
 
 # 2.2 使用 winget 安装 Git.Git；失败则提示官网手动安装
 function Install-Git {
-    Write-Host "Git not found" -Level info
+    Write-Host "Git 未安装" -Level info
     
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Host "  Installing Git via winget..." -Level info
+        Write-Host "  使用 winget 安装 Git..." -Level info
         try {
             winget install Git.Git --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-            Write-Host "  Git installed" -Level success
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            Write-Host "  winget 安装 Git 成功" -Level success
             return $true
-        } catch {
-            Write-Host "  Winget install failed" -Level warn
+        }
+        catch {
+            Write-Host "  winget 安装 Git 失败" -Level warn
         }
     }
     
-    Write-Host "Please install Git for Windows from: https://git-scm.com" -Level error
+    Write-Host "请手动从 https://git-scm.com/install/windows 安装 Git" -Level error
     return $false
 }
 
@@ -244,12 +251,13 @@ function Install-Git {
 function Ensure-Git {
     $gitVersion = Get-GitVersion
     if ($gitVersion) {
-        Write-Host "$gitVersion found" -Level success
+        Write-Host "Git $gitVersion 已安装" -Level success
         return $true
     }
     return Install-Git
 }
 
+<#
 # --- 通用工具：子进程输出捕获、路径与字符串 ---
 
 # 读取文件并去掉末尾换行，不存在返回空串
@@ -494,7 +502,7 @@ function Complete-Install {
     throw "OpenClaw installation failed with exit code $($script:InstallExitCode)."
 }
 
-# Main：当前仅执行 0→1（步骤 2–4 见上方注释块）
+# Main：当前执行 0→1→2（步骤 3–4 见下方注释块及上方「通用工具」注释块）
 function Main {
     Write-Banner
     
@@ -504,7 +512,7 @@ function Main {
     # Check and handle execution policy FIRST, before any npm calls
     if (!(Ensure-ExecutionPolicy)) {
         Write-Host ""
-        Write-Host "Installation cannot continue due to execution policy restrictions" -Level error
+        Write-Host "由于执行策略的限制，安装无法继续进行。" -Level error
         return (Fail-Install)
     }
     
@@ -515,36 +523,45 @@ function Main {
 
     # 1.3 设置 npm registry 镜像
     Set-NpmRegistryMirror
-    
-    <#
-    # 2 / 3：按 InstallMethod 分支
+
+    # 根据`-InstallMethod`参数选择安装方式
+    # `git` 模式下需硬性安装 Git
+    # `npm` 模式下仅警告，不中断安装
     if ($InstallMethod -eq "git") {
-        # 2 Git（git 模式为硬性依赖）
+        # 2 安装 Git
         if (!(Ensure-Git)) {
             return (Fail-Install)
         }
-        
+
+        <#
         if ($DryRun) {
             Write-Host "[DRY RUN] Would install OpenClaw from git to $GitDir" -Level info
-        } else {
+        }
+        else {
             try {
                 npm uninstall -g openclaw 2>$null | Out-Null
-            } catch { }
+            }
+            catch { }
             # 3.2 从 GitHub 克隆/更新 + pnpm 构建 + wrapper
             if (!(Install-OpenClawGit -RepoDir $GitDir -Update:(-not $NoGitUpdate))) {
                 return (Fail-Install)
             }
         }
-    } else {
-        # npm 方式：建议有 Git（部分依赖可能用到），非硬性失败
-        # npm method
+        #>
+    }
+    else {
+        # npm 方式：建议有 Git（部分依赖可能用到）
+        # 仅检测 Git 并警告，不中断安装
         if (!(Ensure-Git)) {
-            Write-Host "Git is required for npm installs. Please install Git and try again." -Level warn
+            Write-Host "未检测到 Git，npm 安装可能会失败，建议安装 Git 并重新运行安装脚本。" -Level warn
         }
-        
+
+        <#
         if ($DryRun) {
             Write-Host "[DRY RUN] Would install OpenClaw via npm ($((Resolve-PackageInstallSpec -Target $Tag)))" -Level info
         } else {
+
+            
             $gitWrapper = "$env:USERPROFILE\.local\bin\openclaw.cmd"
             if (Test-Path $gitWrapper) {
                 Remove-Item -Force $gitWrapper
@@ -554,9 +571,12 @@ function Main {
             if (!(Install-OpenClawNpm -Target $Tag)) {
                 return (Fail-Install)
             }
+            
         }
+        #>
     }
-    
+
+    <#
     # 4 收尾：把 npm 全局 prefix 加入用户 PATH，便于直接运行 openclaw
     # Try to add npm global bin to PATH
     try {
@@ -570,19 +590,19 @@ function Main {
             Add-ToPath -Path "$npmPrefix"
         }
     } catch { }
-    
+
     # 4.1 可选：提示首次引导命令
     if (!$NoOnboard -and !$DryRun) {
         Write-Host ""
         Write-Host "Run 'openclaw onboard' to complete setup" -Level info
     }
-    
+
     Write-Host ""
-    Write-Host "🦞 OpenClaw installed successfully!" -Level success
+    Write-Host "🦞 OpenClaw 安装成功!" -Level success
     #>
     
     Write-Host ""
-    Write-Host "步骤 0（前置）与 1（Node.js）已完成。" -Level success
+    Write-Host "步骤 0（前置）、1（Node.js）与 2（Git）已完成。" -Level success
     return $true
 }
 
