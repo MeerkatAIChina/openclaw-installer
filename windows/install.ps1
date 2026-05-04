@@ -20,8 +20,9 @@ $ErrorActionPreference = "Stop"
 # 1 Node.js    — 1.1 检测版本 ≥22；1.2 缺失则 winget → choco → scoop 安装；1.3 设置 npm registry 镜像
 # 2 Git        — 2.1 检测；2.2 缺失则 winget 安装（git 安装模式为硬性依赖）
 # 3 OpenClaw   — 3.1 npm：全局 npm 包；3.2 git：克隆/更新仓库 + pnpm 构建 + 本地 wrapper
-# （以下步骤代码暂注释，解冻步骤 4 时启用：）
-# 4 收尾       — 将 npm global prefix 写入用户 PATH；可选提示 onboard
+# 4 收尾       — 将 npm global prefix 写入用户 PATH
+# 5 onboard    — 5.1 事前说明；5.2 执行 `openclaw onboard … --json`；5.3 解析 JSON 中 ok 为 true 则算成功
+#                 -NoOnboard 时整步跳过；-DryRun 不执行、仅 [DRY RUN] 提示
 # -----------------------------------------------------------------------------
 
 # Colors
@@ -478,6 +479,91 @@ function Add-ToPath {
     }
 }
 
+# --- 5. onboard（需在步骤 4 写入用户 PATH 之后，当前进程才能找到 openclaw）---
+
+# 从注册表合并 Machine + User 的 Path 到当前会话 $env:Path（步骤 4 刚改过 User PATH，本进程尚未自动继承）
+function Refresh-SessionPathFromRegistry {
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+}
+
+# 解析 openclaw 可执行路径：先 PATH 中查找，否则用 npm prefix 下的 openclaw.cmd
+function Resolve-OpenClawExecutablePath {
+    Refresh-SessionPathFromRegistry
+    $cmd = Get-Command openclaw -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return $cmd.Source
+    }
+    $prefixResult = Invoke-NativeCommandCapture -FilePath "npm.cmd" -Arguments @("config", "get", "prefix") -WorkingDirectory (Get-NpmWorkingDirectory)
+    if ($prefixResult.ExitCode -ne 0) {
+        return $null
+    }
+    $prefix = $prefixResult.Stdout.Trim()
+    if ([string]::IsNullOrWhiteSpace($prefix)) {
+        return $null
+    }
+    $candidate = Join-Path $prefix "openclaw.cmd"
+    if (Test-Path -LiteralPath $candidate) {
+        return $candidate
+    }
+    return $null
+}
+
+# 5.2 调用官方 quickstart onboard（交互参数集 + --json）；返回是否判定成功（见下方 JSON.ok）
+function Invoke-OpenClawOnboardQuickstart {
+    $exe = Resolve-OpenClawExecutablePath
+    if (!$exe) {
+        Write-Host "未找到 openclaw 可执行文件，无法执行 onboard。" -Level warn
+        return $false
+    }
+
+    # quickstart + gateway token + 安装 daemon + 跳过可选向导项；--json 便于解析结果
+    $arguments = @(
+        "onboard",
+        "--accept-risk",
+        "--flow", "quickstart",
+        "--gateway-auth", "token",
+        "--install-daemon",
+        "--skip-channels",
+        "--skip-skills",
+        "--skip-search",
+        "--skip-ui",
+        "--json"
+    )
+
+    $result = Invoke-NativeCommandCapture -FilePath $exe -Arguments $arguments -WorkingDirectory (Get-NpmWorkingDirectory)
+    if ($result.Stderr) {
+        Microsoft.PowerShell.Utility\Write-Host $result.Stderr
+    }
+
+    # 5.3 从 stdout 解析 JSON：优先整段；失败则从首个 “{” 截取（兼容前缀日志）
+    $text = $result.Stdout.Trim()
+    $obj = $null
+    try {
+        $obj = $text | ConvertFrom-Json
+    }
+    catch {
+        $i = $text.IndexOf("{")
+        if ($i -ge 0) {
+            try {
+                $obj = $text.Substring($i) | ConvertFrom-Json
+            }
+            catch { }
+        }
+    }
+
+    if ($null -eq $obj) {
+        Write-Host "无法解析 onboard 的 JSON 输出。" -Level warn
+        return $false
+    }
+
+    # 产品约定：根字段 ok 为 true 表示 onboard 成功
+    if ($obj.ok -eq $true) {
+        return $true
+    }
+
+    return $false
+}
+
 $script:InstallExitCode = 0
 
 # 记录失败退出码（供 Complete-Install / 被 dot-source 时处理）
@@ -503,7 +589,7 @@ function Complete-Install {
     throw "OpenClaw 安装失败，退出码：$($script:InstallExitCode)。"
 }
 
-# Main：当前执行 0→1→2→3（步骤 4 见下方注释块）
+# Main
 function Main {
     Write-Banner
     
@@ -571,9 +657,7 @@ function Main {
         }
     }
 
-    <#
     # 4 收尾：把 npm 全局 prefix 加入用户 PATH，便于直接运行 openclaw
-    # Try to add npm global bin to PATH
     try {
         $prefixResult = Invoke-NativeCommandCapture -FilePath "npm.cmd" -Arguments @(
             "config",
@@ -584,20 +668,37 @@ function Main {
         if ($prefixResult.ExitCode -eq 0 -and $npmPrefix) {
             Add-ToPath -Path "$npmPrefix"
         }
-    } catch { }
-
-    # 4.1 可选：提示首次引导命令
-    if (!$NoOnboard -and !$DryRun) {
-        Write-Host ""
-        Write-Host "Run 'openclaw onboard' to complete setup" -Level info
     }
-
+    catch { }
     Write-Host ""
     Write-Host "🦞 OpenClaw 安装成功!" -Level success
-    #>
-    
-    Write-Host ""
-    Write-Host "步骤 0～3 已完成。步骤 4（PATH / onboard）仍为注释，npm 全局命令可能需新开终端。" -Level success
+
+    # 5 onboard：-NoOnboard 时整步跳过；有提示、有执行、有结果分支（安装整体仍可能 return $true）
+    $onboardOk = $null
+    if (!$NoOnboard) {
+        if ($DryRun) {
+            # 5.0 仅演示将执行的子命令，不修改环境
+            Write-Host ""
+            Write-Host "[DRY RUN] 将执行 openclaw onboard（quickstart，--json）。" -Level info
+        }
+        else {
+            # 5.1 让用户在自动执行前准备 API Key 等
+            Write-Host ""
+            Write-Host "即将调用 OpenClaw 官方引导进行配置。请提前准备好模型相关信息（例如 API Key）。" -Level info
+            # 5.2～5.3 见 Invoke-OpenClawOnboardQuickstart 内注释
+            $onboardOk = Invoke-OpenClawOnboardQuickstart
+        }
+    }
+
+    # 收尾文案：安装成功始终打印；onboard 仅在执行过时附加成功或失败说明（不把 onboard 失败当作安装失败）
+    if ($null -ne $onboardOk) {
+        if ($onboardOk) {
+            Write-Host "🦞 OpenClaw 配置成功。" -Level success
+        }
+        else {
+            Write-Host "安装已完成，但 onboard 配置未成功。请稍后手动执行 openclaw onboard 完成配置。" -Level warn
+        }
+    }
     return $true
 }
 

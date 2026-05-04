@@ -56,13 +56,48 @@ Git 在 git 安装模式下是必须（`-InstallMethod git`），且默认的 np
 - `pnpm build`
 - 生成 `openclaw.cmd` 包装器并加到 PATH。
 
+## OpenClaw `onboard` 非交互式安装的使用说明
+
+👉️ [openclaw-onboard 说明文档](./docs/openclaw-onboard.md)
+
 ## 我们的安装脚本说明
 
-我们在官网安装脚本的基础上，做了自定义的二次开发，既保留了部分功能，又针对国内的小白用户他拓展了一些功能。
+我们在官网安装脚本的基础上，做了自定义的二次开发，既保留了部分功能，又针对国内的小白用户拓展了一些功能。
 
-### 🚀 新增功能
+### 🌈 新增功能
 
 - 设置 `npm` 下载源为淘宝镜像。
 
   新增 `Set-NpmRegistryMirror` 函数，设置淘宝镜像。
+
+- 主动调用 `onboard` 进行基础配置。
+
+  ```bash
+  openclaw onboard --accept-risk \
+    --flow quickstart \
+    --gateway-auth token \
+    --install-daemon \
+    --skip-channels \
+    --skip-skills \
+    --skip-search \
+    --skip-ui \
+    --json \
+  ```
+
+- 单独进行 Skills 配置。
+
+  安装 `SkillsHub` ，再预装 Skills。
+
+- 单独进行 md 模板配置。
+
+### 🚀 安装流程
+
+1. 环境检测（与官方保持一致）
+2. NodeJS 安装（与官方保持一致）+ npm 下载源替换
+3. Git 安装（与官方保持一致）
+4. 下载安装OpenClaw（与官方保持一致）
+5. 收尾，将 npm global prefix 写入用户 PATH（与官方保持一致）
+6. 进行 `onboard` 引导配置
+7. 进行 Skills 配置
+8. 进行 md 模板配置
 
