@@ -56,7 +56,7 @@ Git 在 git 安装模式下是必须（`-InstallMethod git`），且默认的 np
 - `pnpm build`
 - 生成 `openclaw.cmd` 包装器并加到 PATH。
 
-## OpenClaw `onboard` 非交互式安装的使用说明
+## OpenClaw `onboard` 使用说明
 
 👉️ [openclaw-onboard 说明文档](./docs/openclaw-onboard.md)
 
@@ -86,9 +86,11 @@ Git 在 git 安装模式下是必须（`-InstallMethod git`），且默认的 np
 
 - 单独进行 Skills 配置。
 
-  安装 `SkillsHub` ，再预装 Skills。
+  安装 `SkillHub` ，再预装 Skills。
 
-- 单独进行 md 模板配置。
+- 单独进行 md 模板配置
+
+  todo
 
 ### 🚀 安装流程
 

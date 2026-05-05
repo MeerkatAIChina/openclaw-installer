@@ -8,11 +8,30 @@ param(
     [string]$Tag = "latest",
     [string]$GitDir = "$env:USERPROFILE\openclaw",
     [switch]$NoOnboard,
+    [switch]$NoSkills,
     [switch]$NoGitUpdate,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
+
+# 步骤 6 预装 Skills 列表（单 URL 分发：仅使用此内嵌数组，不读取仓库外部 YAML）
+$script:SkillHubDefaultSkills = @(
+    'self-improving-agent',
+    'data-analyst',
+    'find-skills',
+    'humanizer',
+    'markdown-converter',
+    'memory-setup',
+    'multi-search-engine',
+    'nano-pdf',
+    'ontology',
+    'proactive-agent',
+    'skill-vetter',
+    'summarize'
+)
+
+$script:SkillHubKitTarUrl = 'https://skillhub-1388575217.cos.ap-guangzhou.myqcloud.com/install/latest.tar.gz'
 
 # -----------------------------------------------------------------------------
 # 安装流程总览（主入口：Main）
@@ -23,6 +42,7 @@ $ErrorActionPreference = "Stop"
 # 4 收尾       — 将 npm global prefix 写入用户 PATH
 # 5 onboard    — 5.1 事前说明；5.2 执行 `openclaw onboard … --json`；5.3 解析 JSON 中 ok 为 true 则算成功
 #                 -NoOnboard 时整步跳过；-DryRun 不执行、仅 [DRY RUN] 提示
+# 6 SkillHub   — 6.1 官方安装包（tar）+ bash 执行 cli/install.sh；6.2 按内嵌列表 skillhub install；-NoSkills 整步跳过；-DryRun 仅提示
 # -----------------------------------------------------------------------------
 
 # Colors
@@ -564,6 +584,141 @@ function Invoke-OpenClawOnboardQuickstart {
     return $false
 }
 
+# --- 6. SkillHub（Main 成功后在脚本入口调用；失败仅告警，不改变 Complete-Install 判定）---
+
+function Get-BashExecutablePath {
+    $cmd = Get-Command bash -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return $cmd.Source
+    }
+    foreach ($candidate in @(
+        "$env:ProgramFiles\Git\bin\bash.exe",
+        "$env:ProgramFiles(x86)\Git\bin\bash.exe",
+        "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe"
+        )) {
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+# 6.1 与官网 curl … \| bash 等价：下载 latest.tar.gz，解压后执行包内 cli/install.sh（需 Git Bash 等 bash.exe）
+function Install-SkillHubOfficialKit {
+    $bashExe = Get-BashExecutablePath
+    if (!$bashExe) {
+        Write-Host "未找到 bash（例如 Git for Windows 自带的 bash.exe），无法执行 SkillHub 官方 Linux 安装脚本。请先安装 Git： https://git-scm.com/install/windows" -Level warn
+        return $false
+    }
+
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('skillhub-kit-' + [Guid]::NewGuid().ToString())
+    $tarFile = Join-Path $tempRoot 'latest.tar.gz'
+    $extractRoot = Join-Path $tempRoot 'extracted'
+    try {
+        New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+        New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+
+        Write-Host "正在下载 SkillHub 安装包..." -Level info
+        Invoke-WebRequest -Uri $script:SkillHubKitTarUrl -OutFile $tarFile -UseBasicParsing
+
+        $tarCmd = Get-Command tar -ErrorAction SilentlyContinue
+        if (!$tarCmd) {
+            Write-Host "当前环境未找到 tar，无法解压 SkillHub 安装包。" -Level warn
+            return $false
+        }
+
+        & $tarCmd.Source -xzf $tarFile -C $extractRoot
+        if (-not $?) {
+            Write-Host "解压 SkillHub 安装包失败。" -Level warn
+            return $false
+        }
+
+        $installerScript = Get-ChildItem -Path $extractRoot -Recurse -Filter install.sh -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'cli' } |
+            Select-Object -First 1
+        if (!$installerScript) {
+            Write-Host "解压结果中未找到 cli/install.sh。" -Level warn
+            return $false
+        }
+
+        Write-Host "正在运行 SkillHub 官方安装脚本..." -Level info
+        $proc = Start-Process -FilePath $bashExe -ArgumentList @($installerScript.FullName) -WorkingDirectory $extractRoot -Wait -PassThru -NoNewWindow
+        if ($proc.ExitCode -ne 0) {
+            Write-Host "SkillHub 官方安装脚本退出码：$($proc.ExitCode)" -Level warn
+            return $false
+        }
+        return $true
+    }
+    finally {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Resolve-SkillHubExecutablePath {
+    Refresh-SessionPathFromRegistry
+    $cmd = Get-Command skillhub -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return $cmd.Source
+    }
+    return $null
+}
+
+function Install-SkillHub {
+    if ($NoSkills) {
+        return
+    }
+
+    Write-Host ""
+    Write-Host "${ACCENT}—— SkillHub / 预装 Skills ——$NC" -Level info
+
+    if ($DryRun) {
+        Write-Host "[DRY RUN] 将下载 SkillHub 官方安装包并运行 cli/install.sh；随后 skillhub install：" ($script:SkillHubDefaultSkills -join ', ') -Level info
+        return
+    }
+
+    # 6.1：若无 skillhub 命令则执行官网套件安装
+    $skillhubExe = Resolve-SkillHubExecutablePath
+    if (!$skillhubExe) {
+        if (!(Install-SkillHubOfficialKit)) {
+            Write-Host "SkillHub CLI 未能安装，跳过预装 Skills。" -Level warn
+            return
+        }
+        Refresh-SessionPathFromRegistry
+        $skillhubExe = Resolve-SkillHubExecutablePath
+    }
+
+    if (!$skillhubExe) {
+        Write-Host "安装包已执行完毕，但仍无法在 PATH 中找到 skillhub，跳过预装 Skills。" -Level warn
+        return
+    }
+
+    # 6.2：按内嵌列表安装到 OpenClaw 约定目录（由 skillhub 负责）
+    $ok = 0
+    $failedSkills = @()
+    foreach ($skillId in $script:SkillHubDefaultSkills) {
+        if ([string]::IsNullOrWhiteSpace($skillId)) {
+            continue
+        }
+        Write-Host "skillhub install $skillId ..." -Level info
+        $r = Invoke-NativeCommandCapture -FilePath $skillhubExe -Arguments @('install', $skillId.Trim()) -WorkingDirectory (Get-NpmWorkingDirectory)
+        if ($r.Stdout) {
+            Microsoft.PowerShell.Utility\Write-Host $r.Stdout
+        }
+        if ($r.Stderr) {
+            Microsoft.PowerShell.Utility\Write-Host $r.Stderr
+        }
+        if ($r.ExitCode -eq 0) {
+            $ok++
+        }
+        else {
+            $failedSkills += $skillId
+            Write-Host "skillhub install $skillId 失败（退出码 $($r.ExitCode)）。" -Level warn
+        }
+    }
+
+    Write-Host "SkillHub 预装结束：成功 $ok 个；失败 $($failedSkills.Count) 个。" -Level $(if ($failedSkills.Count -eq 0) { 'success' } else { 'warn' })
+}
+
 $script:InstallExitCode = 0
 
 # 记录失败退出码（供 Complete-Install / 被 dot-source 时处理）
@@ -702,7 +857,10 @@ function Main {
     return $true
 }
 
-# 脚本入口：执行 Main 并根据结果退出或抛错
+# 脚本入口：执行 Main；Complete-Install 仅反映 Main；SkillHub 在成功后追加（失败不影响退出码）
 $mainResults = @(Main)
 $installSucceeded = $mainResults.Count -gt 0 -and $mainResults[-1] -eq $true
 Complete-Install -Succeeded:$installSucceeded
+if ($installSucceeded -and !$NoSkills) {
+    Install-SkillHub
+}
