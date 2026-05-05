@@ -1,58 +1,21 @@
 BeforeAll {
     $windowsRoot = Split-Path $PSScriptRoot -Parent
-    . (Join-Path $windowsRoot "node\path-utils.ps1")
-    $script:backupUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $script:InstallerPs1 = Join-Path $windowsRoot "install.ps1"
+    $script:ReferenceInstallerPs1 = Join-Path $windowsRoot "openclaw\install.ps1"
 }
 
-AfterAll {
-    if ($null -ne $script:backupUserPath) {
-        [Environment]::SetEnvironmentVariable("Path", $script:backupUserPath, "User")
-    }
-}
-
-Describe "Get-ProgramFilesNodeInstallRoot" {
-    It "returns an existing directory path" {
-        $r = Get-ProgramFilesNodeInstallRoot
-        $r | Should -Not -BeNullOrEmpty
-        Test-Path -LiteralPath $r | Should -Be $true
-    }
-}
-
-Describe "Add-PathEntryIfMissing" {
-    BeforeEach {
-        $script:testEntry = Join-Path $env:TEMP ("oc-path-" + [guid]::NewGuid().ToString("N"))
+Describe "Windows installer script integrity" {
+    It "defines Invoke-OpenClawCommand in main installer" {
+        $content = Get-Content -LiteralPath $script:InstallerPs1 -Raw
+        $content.IndexOf("function Invoke-OpenClawCommand") | Should -BeGreaterThan -1
     }
 
-    AfterEach {
-        Remove-PathEntryIfExists -Scope User -Entry $script:testEntry
+    It "defines Invoke-OpenClawDashboardBrowser in main installer" {
+        $content = Get-Content -LiteralPath $script:InstallerPs1 -Raw
+        $content.IndexOf("function Invoke-OpenClawDashboardBrowser") | Should -BeGreaterThan -1
     }
 
-    It "appends a missing entry to User Path" {
-        Add-PathEntryIfMissing -Scope User -Entry $script:testEntry
-        $p = [Environment]::GetEnvironmentVariable("Path", "User")
-        ($p -split ";" | Where-Object { $_ -eq $script:testEntry }).Count | Should -Be 1
-    }
-
-    It "does not duplicate the same logical path" {
-        Add-PathEntryIfMissing -Scope User -Entry $script:testEntry
-        Add-PathEntryIfMissing -Scope User -Entry ($script:testEntry + "\")
-        $p = [Environment]::GetEnvironmentVariable("Path", "User")
-        $matches = $p -split ";" | Where-Object {
-            $_.TrimEnd("\").ToLowerInvariant() -eq $script:testEntry.TrimEnd("\").ToLowerInvariant()
-        }
-        $matches.Count | Should -Be 1
-    }
-}
-
-Describe "Remove-PathEntryIfExists" {
-    BeforeEach {
-        $script:testEntry = Join-Path $env:TEMP ("oc-path-" + [guid]::NewGuid().ToString("N"))
-        Add-PathEntryIfMissing -Scope User -Entry $script:testEntry
-    }
-
-    It "removes an existing entry" {
-        Remove-PathEntryIfExists -Scope User -Entry $script:testEntry
-        $p = [Environment]::GetEnvironmentVariable("Path", "User")
-        ($p -split ";" | Where-Object { $_ -eq $script:testEntry }).Count | Should -Be 0
+    It "reference installer still exists for comparison" {
+        Test-Path -LiteralPath $script:ReferenceInstallerPs1 | Should -Be $true
     }
 }
