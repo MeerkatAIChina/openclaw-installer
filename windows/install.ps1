@@ -10,7 +10,7 @@
 # 3 命令与 PATH — openclaw/npm/pnpm 路径、调用、全局 bin、补全 PATH、确保 pnpm
 # 4 安装本体   — 4.1 npm 包说明；4.2 npm 全局安装；4.3 Git 源码克隆构建；4.4.1/4.4.2 遗留子模块目录解析与删除
 # 5 装后       — 5.1 doctor 迁移；5.2 网关服务刷新；5.3 预装 Skills（全新安装）
-# 6 Main       — 总控与 onboard；-NoInstall 跳过 OpenClaw 安装步骤
+# 6 Main       — 总控与 onboard
 
 param(
     [string]$Tag = "latest",
@@ -19,7 +19,6 @@ param(
     [string]$GitDir,
     [switch]$NoOnboard,
     [switch]$NoGitUpdate,
-    [switch]$NoInstall,
     [switch]$DryRun
 )
 
@@ -55,7 +54,7 @@ function Complete-Install {
 }
 
 Write-Host ""
-Write-Host "  OpenClaw Installer" -ForegroundColor Cyan
+Write-Host "  🦞 OpenClaw 安装神器 —— 猫鼬AI出品" -ForegroundColor Cyan
 Write-Host ""
 
 # Check if running in PowerShell
@@ -85,11 +84,6 @@ if (-not $PSBoundParameters.ContainsKey("NoOnboard")) {
 if (-not $PSBoundParameters.ContainsKey("NoGitUpdate")) {
     if ($env:OPENCLAW_GIT_UPDATE -eq "0") {
         $NoGitUpdate = $true
-    }
-}
-if (-not $PSBoundParameters.ContainsKey("NoInstall")) {
-    if ($env:OPENCLAW_NO_INSTALL -eq "1") {
-        $NoInstall = $true
     }
 }
 if (-not $PSBoundParameters.ContainsKey("DryRun")) {
@@ -581,7 +575,7 @@ function Install-OpenClaw {
         $packageName = "openclaw"
     }
     $installSpec = Resolve-NpmOpenClawInstallSpec -PackageName $packageName -RequestedTag $Tag
-    Write-Host "[*] Installing OpenClaw ($installSpec)..." -ForegroundColor Yellow
+    Write-Host "[*] 正在安装 OpenClaw ($installSpec)..." -ForegroundColor Yellow
     $prevLogLevel = $env:NPM_CONFIG_LOGLEVEL
     $prevUpdateNotifier = $env:NPM_CONFIG_UPDATE_NOTIFIER
     $prevFund = $env:NPM_CONFIG_FUND
@@ -617,7 +611,7 @@ function Install-OpenClaw {
         $env:NPM_CONFIG_SCRIPT_SHELL = $prevScriptShell
         $env:NODE_LLAMA_CPP_SKIP_DOWNLOAD = $prevNodeLlamaSkipDownload
     }
-    Write-Host "[OK] OpenClaw installed" -ForegroundColor Green
+    Write-Host "[OK] OpenClaw 已安装" -ForegroundColor Green
     return $true
 }
 
@@ -868,13 +862,7 @@ function Main {
     $finalGitDir = $null
 
     # Step 2: OpenClaw
-    if ($NoInstall) {
-        Write-Host "[!] Skipping OpenClaw installation (-NoInstall)" -ForegroundColor Yellow
-        if (-not (Get-OpenClawCommandPath)) {
-            Write-Host "Error: -NoInstall specified but openclaw is not on PATH." -ForegroundColor Red
-            return (Fail-Install)
-        }
-    } elseif ($InstallMethod -eq "git") {
+    if ($InstallMethod -eq "git") {
         try {
             $npmCommand = Get-NpmCommandPath
             if ($npmCommand) {
@@ -929,9 +917,9 @@ function Main {
 
     Write-Host ""
     if ($installedVersion) {
-        Write-Host "OpenClaw installed successfully ($installedVersion)!" -ForegroundColor Green
+        Write-Host "OpenClaw 安装成功 ($installedVersion)!" -ForegroundColor Green
     } else {
-        Write-Host "OpenClaw installed successfully!" -ForegroundColor Green
+        Write-Host "OpenClaw 安装成功!" -ForegroundColor Green
     }
     Write-Host ""
     if ($isUpgrade) {
@@ -982,6 +970,7 @@ function Main {
         Write-Host ""
     }
 
+    # Step 7: onboard
     if ($isUpgrade) {
         Write-Host "Upgrade complete. Run " -NoNewline
         Write-Host "openclaw doctor" -ForegroundColor Cyan -NoNewline
@@ -994,18 +983,14 @@ function Main {
         } else {
             Write-Host "Starting setup..." -ForegroundColor Cyan
             Write-Host ""
-            Invoke-OpenClawCommand onboard `
-                --accept-risk `
-                --flow quickstart `
-                --skip-channels `
-                --skip-skills `
-                --skip-search `
-                --skip-ui
+            Invoke-OpenClawCommand onboard --accept-risk --flow quickstart --skip-channels --skip-skills --skip-search --skip-ui
         }
-
-        # Step 7: 安装预设 Skills（全新安装时执行，与 -NoOnboard 无关）
-        Install-Skills
     }
+
+    # Step 8: 安装预设 Skills（全新安装时执行，与 -NoOnboard 无关）
+    Write-Host ""
+    Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
+    Install-Skills
 
     return $true
 }
