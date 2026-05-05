@@ -1,4 +1,4 @@
-# OpenClaw Installer for Windows (PowerShell)
+﻿# OpenClaw Installer for Windows (PowerShell)
 # Usage: iwr -useb https://openclaw.ai/install.ps1 | iex
 # 本仓库 GitHub 单 URL：iwr -useb https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/install.ps1 | iex
 # 或: & ([scriptblock]::Create((iwr -useb https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/install.ps1))) -NoOnboard
@@ -812,8 +812,9 @@ function Invoke-OpenClawDashboardBrowser {
     $dashUrl = $script:DashboardUrlCaptured
 
     Add-Type -AssemblyName System.Windows.Forms
+    $dashboardPrompt = "小龙虾已经启动，地址为：`n{0}`n`n点击「确定」后在浏览器中打开该地址。" -f $dashUrl
     [void][System.Windows.Forms.MessageBox]::Show(
-        "小龙虾已经启动，地址为：`n$dashUrl`n`n点击「确定」后在浏览器中打开该地址。",
+        $dashboardPrompt,
         'OpenClaw Dashboard',
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Information

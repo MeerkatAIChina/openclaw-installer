@@ -1,4 +1,4 @@
-# 单 URL 启动器：从 GitHub raw 拉取同仓库 windows/install.ps1 并执行（与 windows/install.ps1 的 param 保持同步）
+﻿# 单 URL 启动器：从 GitHub raw 拉取同仓库 windows/install.ps1 并执行（与 windows/install.ps1 的 param 保持同步）
 # 用法:
 #   iwr -useb https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/install.ps1 | iex
 #   & ([scriptblock]::Create((iwr -useb 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/install.ps1'))) -NoOnboard
