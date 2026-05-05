@@ -1,9 +1,10 @@
 ﻿# OpenClaw Installer for Windows
 # Usage: powershell -c "irm https://openclaw.ai/install.ps1 | iex"
-#        powershell -c "& ([scriptblock]::Create((irm https://openclaw.ai/install.ps1))) -Tag beta -NoOnboard -DryRun"
-# 远程 raw（勿用 iwr ... | iex）：iwr 返回的是响应对象，5.1 下 iex 会误解析。请二选一：
-#   iex (irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install.ps1')
-#   iex ((iwr -useBasicParsing 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install.ps1').Content)
+#        powershell -c "& ([scriptblock]::Create(((irm https://openclaw.ai/install.ps1).TrimStart([char]0xFEFF)))) -Tag beta -NoOnboard -DryRun"
+# 远程一键：字符串首字符若为 UTF-8 BOM（U+FEFF），5.1 下 iex 会误解析 param；须 TrimStart：
+#   iex ((irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install.ps1').TrimStart([char]0xFEFF))
+#   iex ((iwr -UseBasicParsing 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install.ps1').Content.TrimStart([char]0xFEFF))
+# 勿用 `iwr ... | iex`（管道传入的是响应对象）。
 #
 # 流程总览（主入口：Main）
 # 0 前置       — 参数、环境变量、退出码、横幅、PowerShell 版本、默认 GitDir
@@ -601,7 +602,7 @@ function Install-OpenClaw {
                 Write-Host "  https://git-scm.com/download/win" -ForegroundColor Cyan
             } else {
                 Write-Host "Re-run with verbose output to see the full error:" -ForegroundColor Yellow
-                Write-Host '  powershell -c "irm https://openclaw.ai/install.ps1 | iex"' -ForegroundColor Cyan
+                Write-Host '  powershell -c "iex ((irm https://openclaw.ai/install.ps1).TrimStart([char]0xFEFF))"' -ForegroundColor Cyan
             }
             $npmOutput | ForEach-Object { Write-Host $_ }
             return $false
