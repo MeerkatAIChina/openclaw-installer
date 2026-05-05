@@ -1,4 +1,4 @@
-# Windows 版本的脚本使用说明
+Windows 版本的脚本使用说明
 
 ## OpenClaw 官方安装脚本解析
 
@@ -118,10 +118,20 @@
 1. 环境检测（与官方保持一致）
 2. NodeJS 安装（与官方保持一致）+ npm 下载源替换
 3. Git 安装（与官方保持一致）
-4. 下载安装OpenClaw（与官方保持一致）
-5. 收尾，将 npm global prefix 写入用户 PATH（与官方保持一致）
+3. 确保环境正常：openclaw/npm/pnpm 路径、调用、全局 bin、补全 PATH、确保 pnpm
+4. 下载安装 OpenClaw 本体（与官方保持一致）
+5. 装后：doctor 迁移、网关服务刷新、预装 Skills（全新安装）
 6. 进行 `onboard` 引导配置
 7. 进行 Skills 配置
 8. 进行 md 模板配置
 9. 通过 `dashboard` 获取 token URL，并自动打开浏览器
 
+### 📖使用方法
+
+#### 命令
+
+```powershe
+ iwr -useb https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/install.ps1 | iex
+```
+
+#### 参数

@@ -4,13 +4,13 @@
 #
 # 流程总览（主入口：Main）
 # 0 前置       — 参数、环境变量、退出码、横幅、PowerShell 版本、默认 GitDir
-# 1 Node.js    — 1.1 检测版本；1.2 自动安装；1.3 设置 npm 淘宝镜像
-# 1.4 已有安装 — 是否已存在 openclaw（升级判断）
+# 1 Node.js    — 1.1 检测版本；1.2 自动安装；1.3 设置 npm 淘宝镜像 1.4 已有安装 — 是否已存在 openclaw（升级判断）
 # 2 Git        — 2.1 检测；2.2 进程 PATH；2.3 便携目录与 git.exe；2.4 启用便携；2.5 解析 MinGit；2.6 安装便携；2.7 确保可用
 # 3 命令与 PATH — openclaw/npm/pnpm 路径、调用、全局 bin、补全 PATH、确保 pnpm
 # 4 安装本体   — 4.1 npm 包说明；4.2 npm 全局安装；4.3 Git 源码克隆构建；4.4.1/4.4.2 遗留子模块目录解析与删除
 # 5 装后       — 5.1 doctor 迁移；5.2 网关服务刷新；5.3 预装 Skills（全新安装）
 # 6 Main       — 总控与 onboard
+# 7 Dashboard  — 获取并打开链接
 
 param(
     [string]$Tag = "latest",
@@ -999,3 +999,83 @@ function Main {
 $mainResults = @(Main)
 $installSucceeded = $mainResults.Count -gt 0 -and $mainResults[-1] -eq $true
 Complete-Install -Succeeded:$installSucceeded
+
+# -----------------------------------------------------------------------------
+# 7 Dashboard 启动，浏览器打开解析带 token 的 URL
+# -----------------------------------------------------------------------------
+function Invoke-OpenClawDashboardBrowser {
+    $openclawPath = Get-OpenClawCommandPath
+    if (-not $openclawPath) {
+        Write-Host "[!] openclaw command not found; cannot launch dashboard." -ForegroundColor Yellow
+        return
+    }
+
+    $stdoutPath = Join-Path $env:TEMP ("openclaw-dashboard-" + [guid]::NewGuid().ToString("N") + ".out.log")
+    $stderrPath = Join-Path $env:TEMP ("openclaw-dashboard-" + [guid]::NewGuid().ToString("N") + ".err.log")
+    $dashboardUrl = $null
+    $timeoutSeconds = 20
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    $dashboardProcess = $null
+
+    Write-Host "[*] Launching OpenClaw dashboard..." -ForegroundColor Yellow
+    try {
+        $dashboardProcess = Start-Process `
+            -FilePath $openclawPath `
+            -ArgumentList @("dashboard") `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath `
+            -PassThru
+
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 500
+
+            if (Test-Path $stdoutPath) {
+                $stdoutContent = Get-Content -Path $stdoutPath -Raw -ErrorAction SilentlyContinue
+                if ($stdoutContent -match 'Dashboard URL:\s*(https?://\S*#token=\S+)') {
+                    $dashboardUrl = $Matches[1]
+                    break
+                }
+            }
+
+            if ($dashboardProcess.HasExited) {
+                break
+            }
+        }
+
+        if (-not $dashboardUrl) {
+            Write-Host "[!] Could not retrieve dashboard URL with token within $timeoutSeconds seconds." -ForegroundColor Yellow
+            Write-Host "Run \"openclaw dashboard\" manually and copy the \"Dashboard URL:\" line." -ForegroundColor Yellow
+            return
+        }
+
+        Add-Type -AssemblyName PresentationFramework | Out-Null
+        $message = "已获取 Dashboard 地址：`n`n$dashboardUrl`n`n点击“确定”后将在浏览器中打开。"
+        $result = [System.Windows.MessageBox]::Show(
+            $message,
+            "OpenClaw Dashboard",
+            [System.Windows.MessageBoxButton]::OKCancel,
+            [System.Windows.MessageBoxImage]::Information
+        )
+
+        if ($result -eq [System.Windows.MessageBoxResult]::OK) {
+            Start-Process $dashboardUrl | Out-Null
+            Write-Host "[OK] Dashboard URL opened in browser." -ForegroundColor Green
+        } else {
+            Write-Host "[!] Dashboard open canceled by user." -ForegroundColor Yellow
+        }
+    } finally {
+        if ($dashboardProcess -and -not $dashboardProcess.HasExited) {
+            $dashboardProcess.Kill()
+        }
+        if (Test-Path $stdoutPath) {
+            Remove-Item -Force $stdoutPath
+        }
+        if (Test-Path $stderrPath) {
+            Remove-Item -Force $stderrPath
+        }
+    }
+}
+
+if ($installSucceeded -and !$NoDashboard) {
+    Invoke-OpenClawDashboardBrowser
+}
