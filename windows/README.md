@@ -90,7 +90,22 @@
   
 - 单独进行 Skills 配置。
 
-  安装 `SkillHub` ，再预装 Skills。
+  预先安装部分常用 Skills
+
+  ```tex
+  'self-improving-agent',
+  'data-analyst',
+  'find-skills',
+  'humanizer',
+  'markdown-converter',
+  'memory-setup',
+  'multi-search-engine',
+  'nano-pdf',
+  'ontology',
+  'proactive-agent',
+  'skill-vetter',
+  'summarize'
+  ```
 
 - 单独进行 md 模板配置
 

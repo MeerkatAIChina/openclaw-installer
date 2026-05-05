@@ -9,7 +9,7 @@
 # 2 Git        — 2.1 检测；2.2 进程 PATH；2.3 便携目录与 git.exe；2.4 启用便携；2.5 解析 MinGit；2.6 安装便携；2.7 确保可用
 # 3 命令与 PATH — openclaw/npm/pnpm 路径、调用、全局 bin、补全 PATH、确保 pnpm
 # 4 安装本体   — 4.1 npm 包说明；4.2 npm 全局安装；4.3 Git 源码克隆构建；4.4.1/4.4.2 遗留子模块目录解析与删除
-# 5 装后       — 5.1 doctor 迁移；5.2 网关服务刷新
+# 5 装后       — 5.1 doctor 迁移；5.2 网关服务刷新；5.3 预装 Skills（全新安装）
 # 6 Main       — 总控与 onboard
 
 param(
@@ -764,6 +764,51 @@ function Refresh-GatewayServiceIfLoaded {
 }
 
 # -----------------------------------------------------------------------------
+# 5.3 预装 Skills
+# -----------------------------------------------------------------------------
+
+# 5.3 从 ClawHub 逐个安装预设 Skills；单个失败只警告不阻断；升级场景不调用。
+function Install-Skills {
+    $skills = @(
+        'self-improving-agent',
+        'data-analyst',
+        'find-skills',
+        'humanizer',
+        'markdown-converter',
+        'memory-setup',
+        'multi-search-engine',
+        'nano-pdf',
+        'ontology',
+        'proactive-agent',
+        'skill-vetter',
+        'summarize'
+    )
+
+    $failed = @()
+
+    Write-Host "[*] Installing Skills..." -ForegroundColor Yellow
+    foreach ($slug in $skills) {
+        Write-Host "  Installing $slug..." -ForegroundColor Gray
+        try {
+            Invoke-OpenClawCommand skills install $slug
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[!] Failed to install skill '$slug' (exit code $LASTEXITCODE)" -ForegroundColor Yellow
+                $failed += $slug
+            }
+        } catch {
+            Write-Host "[!] Failed to install skill '$slug': $($_.Exception.Message)" -ForegroundColor Yellow
+            $failed += $slug
+        }
+    }
+
+    if ($failed.Count -eq 0) {
+        Write-Host "[OK] All $($skills.Count) skills installed" -ForegroundColor Green
+    } else {
+        Write-Host "[!] $($skills.Count - $failed.Count)/$($skills.Count) skills installed; failed: $($failed -join ', ')" -ForegroundColor Yellow
+    }
+}
+
+# -----------------------------------------------------------------------------
 # 6 Main：总控
 # -----------------------------------------------------------------------------
 
@@ -945,6 +990,9 @@ function Main {
                 --skip-search `
                 --skip-ui
         }
+
+        # Step 7: 安装预设 Skills（全新安装时执行，与 -NoOnboard 无关）
+        Install-Skills
     }
 
     return $true
