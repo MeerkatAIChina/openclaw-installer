@@ -10,7 +10,7 @@
 # 3 命令与 PATH — openclaw/npm/pnpm 路径、调用、全局 bin、补全 PATH、确保 pnpm
 # 4 安装本体   — 4.1 npm 包说明；4.2 npm 全局安装；4.3 Git 源码克隆构建；4.4.1/4.4.2 遗留子模块目录解析与删除
 # 5 装后       — 5.1 doctor 迁移；5.2 网关服务刷新；5.3 预装 Skills（全新安装）
-# 6 Main       — 总控与 onboard
+# 6 Main       — 总控与 onboard；-NoInstall 跳过 OpenClaw 安装步骤
 
 param(
     [string]$Tag = "latest",
@@ -19,6 +19,7 @@ param(
     [string]$GitDir,
     [switch]$NoOnboard,
     [switch]$NoGitUpdate,
+    [switch]$NoInstall,
     [switch]$DryRun
 )
 
@@ -84,6 +85,11 @@ if (-not $PSBoundParameters.ContainsKey("NoOnboard")) {
 if (-not $PSBoundParameters.ContainsKey("NoGitUpdate")) {
     if ($env:OPENCLAW_GIT_UPDATE -eq "0") {
         $NoGitUpdate = $true
+    }
+}
+if (-not $PSBoundParameters.ContainsKey("NoInstall")) {
+    if ($env:OPENCLAW_NO_INSTALL -eq "1") {
+        $NoInstall = $true
     }
 }
 if (-not $PSBoundParameters.ContainsKey("DryRun")) {
@@ -862,7 +868,13 @@ function Main {
     $finalGitDir = $null
 
     # Step 2: OpenClaw
-    if ($InstallMethod -eq "git") {
+    if ($NoInstall) {
+        Write-Host "[!] Skipping OpenClaw installation (-NoInstall)" -ForegroundColor Yellow
+        if (-not (Get-OpenClawCommandPath)) {
+            Write-Host "Error: -NoInstall specified but openclaw is not on PATH." -ForegroundColor Red
+            return (Fail-Install)
+        }
+    } elseif ($InstallMethod -eq "git") {
         try {
             $npmCommand = Get-NpmCommandPath
             if ($npmCommand) {
