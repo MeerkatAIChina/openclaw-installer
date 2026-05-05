@@ -2,59 +2,65 @@
 
 ## OpenClaw 官方安装脚本解析
 
+下文对应仓库中的示例脚本 [`openclaw/install.ps1`](./openclaw/install.ps1)（与官网 one-liner 下载的安装逻辑对齐的代表实现）。
+
 ### 1. OpenClaw install 功能模块划分
 
-| 模块                   | 职责                                                         | 主要符号                                                     |
-| :--------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
-| 1. 入参与全局          | `param`（`InstallMethod`/`Tag`/`GitDir`/`NoOnboard`/`NoGitUpdate`/`DryRun`）、`$ErrorActionPreference = Stop`、ANSI 颜色常量 | 文件顶部                                                     |
-| 2. 终端输出            | 带级别的 `Write-Host` 包装、`Write-Banner`                   | `Write-Host`、`Write-Banner`                                 |
-| 3. PowerShell 环境     | 执行策略是否阻塞、`RemoteSigned` 进程级修复                  | `Get-ExecutionPolicyStatus`、`Ensure-ExecutionPolicy`（另有 `Test-Admin` 定义，主流程未调用） |
-| 4. Node / npm          | 读 `node`/`npm` 版本；缺 Node 或主版本 < 22 时走包管理器安装；装完刷新 `$env:Path` | `Get-NodeVersion`、`Get-NpmVersion`、`Install-Node`、`Ensure-Node` |
-| 5. Git                 | 检测 Git；没有则 winget 装 Git 或提示官网                    | `Get-GitVersion`、`Install-Git`、`Ensure-Git`                |
-| 6. 原生命令与 npm 包名 | 把 `npm.cmd` 等通过子进程跑并收集 stdout/stderr/退出码；把 `-Tag` 解析成 `openclaw@…` / `github:…#main` 等 | `Invoke-NativeCommandCapture`、`Read-TrimmedFileText`、`ConvertTo-PowerShellSingleQuotedLiteral`、`Resolve-PackageInstallSpec`、`Test-ExplicitPackageInstallSpec` |
-| 7. 安装 OpenClaw       | npm：`npm install -g … --no-fund --no-audit`；git：clone/pull、`pnpm install`、`pnpm build`、写 `%USERPROFILE%\.local\bin\openclaw.cmd` 并 `Add-ToPath` | `Install-OpenClawNpm`、`Install-OpenClawGit`                 |
-| 8. 退出与收尾          | 统一失败码、`Complete-Install`（ piped `iex` 时用 `throw` 而非 `exit` 的场景）、用户 PATH 追加 | `Add-ToPath`、`Fail-Install`、`Complete-Install`、`$script:InstallExitCode` |
+| 模块 | 职责 | 主要符号 |
+| :--- | :--- | :--- |
+| **0. 前置与全局** | `param`（`Tag`/`InstallMethod`/`GitDir`/`NoOnboard`/`NoGitUpdate`/`DryRun`）；未显式传入时可用环境变量覆盖：`OPENCLAW_INSTALL_METHOD`、`OPENCLAW_GIT_DIR`、`OPENCLAW_NO_ONBOARD=1`、`OPENCLAW_GIT_UPDATE=0`、`OPENCLAW_DRY_RUN=1`；`$ErrorActionPreference = Stop`；退出码 `Fail-Install` / `Complete-Install`（失败时：独立脚本 `exit`，被点源时 `throw`）；横幅；要求 **PowerShell 5+**；默认 `GitDir` 为 `%USERPROFILE%\openclaw` | `$script:InstallExitCode`、`Fail-Install`、`Complete-Install` |
+| **1. Node.js** | **1.1** `Check-Node`：检查 `node -v` 且主版本 ≥ 22；**1.2** `Install-Node`：依次尝试 `winget`（OpenJS.NodeJS.LTS）→ Chocolatey → Scoop；成功后刷新当前进程的 `$env:Path` | `Check-Node`、`Install-Node` |
+| **1.3 已有安装** | 通过 PATH 上是否存在 `openclaw`/`openclaw.cmd` 判断是否为**升级**场景，影响后续是否跑 `doctor` 与文案 | `Check-ExistingOpenClaw`、`Get-OpenClawCommandPath` |
+| **2. Git** | **2.1** `Check-Git`；**2.2** `Add-ToProcessPath`（仅当前进程 PATH）；**2.3～2.4** 便携 Git 目录、`git.exe` 定位与启用；**2.5** `Resolve-PortableGitDownload`（GitHub API 解析 MinGit zip）；**2.6** `Install-PortableGit` 下载解压到 `%LOCALAPPDATA%\OpenClaw\deps\portable-git`；**2.7** `Ensure-Git`：系统 Git → 已有便携 → 自动拉便携 → 失败则提示手动安装 Git for Windows（**非**仅靠 winget 装 Git） | `Ensure-Git`、`Install-PortableGit` 等 |
+| **3. 命令与 PATH** | 解析并调用 `openclaw`；解析 `npm`/`corepack`/`pnpm`；`Get-NpmGlobalBinCandidates`；**Ensure-OpenClawOnPath**：若 PATH 上还没有 `openclaw`，则根据 npm 全局目录自动把含 `openclaw.cmd` 的路径写入**用户** PATH；**Ensure-Pnpm**：git 安装链路优先 corepack 启用 pnpm，否则 `npm install -g pnpm` | `Invoke-OpenClawCommand`、`Ensure-OpenClawOnPath`、`Ensure-Pnpm` 等 |
+| **4. 安装本体** | **4.1** `Resolve-NpmOpenClawInstallSpec`：把 `-Tag` 转成 npm 安装说明（含 URL、`github:`、`git+`、`file:`、本地路径、`.tgz` 等显式 spec）；**4.2** `Install-OpenClaw`：`npm install -g`，临时收紧 npm 日志/赞助/审计等环境变量，并可跳过部分可选原生模块下载；**4.3** `Install-OpenClawFromGit`：克隆或按需 `pull --rebase`（工作区脏则跳过拉取）、`pnpm install`、`ui:build`（失败仅警告）、`pnpm build`、生成 `%USERPROFILE%\.local\bin\openclaw.cmd` 并补用户 PATH；**4.4** `Get-LegacyRepoDir` / `Remove-LegacySubmodule`：删除仓库内旧版 `Peekaboo` 子模块目录 | `Install-OpenClaw`、`Install-OpenClawFromGit`、`Remove-LegacySubmodule` |
+| **5. 装后** | **5.1** `Run-Doctor`：非交互执行 `openclaw doctor` 做配置迁移（错误忽略）；**5.2** `Refresh-GatewayServiceIfLoaded`：若检测到网关服务已加载则 `gateway install --force` 并尝试 `gateway restart` | `Run-Doctor`、`Test-GatewayServiceLoaded`、`Refresh-GatewayServiceIfLoaded` |
+| **6. Main** | `DryRun` 仅打印将执行选项；正式流程：清理遗留子模块 → 判定升级 → 保证 Node → 按 `InstallMethod` 走 npm 或 git 安装（切换方式时会删掉另一种方式留下的 wrapper/全局包）→ **Ensure-OpenClawOnPath** → 网关刷新 → 升级或 git 安装时跑 doctor → 解析版本号与随机提示文案 → 升级则提示可再跑 `doctor`；全新安装且未 `-NoOnboard` 则调用 **`openclaw onboard`**（与仅打印提示命令不同） | `Main` |
+
+说明：该脚本**不包含**「进程级修改 ExecutionPolicy」一类逻辑；若遇 `npm.ps1` 被策略拦截，需用户自行调整执行策略（与带 `Ensure-ExecutionPolicy` 等自动修复的其它变体不同）。
 
 ### 2. Node 安装解析
 
-在 OpenClaw 的安装器里，Node 的安装本质上是**委托给系统/平台包管理器**完成的，自己本身并没有 Node 安装流程，它主要做的是：
+在 **install.ps1** 中，Node 的安装同样是**委托给 Windows 上的包管理器**（`winget` / `choco` / `scoop`），脚本自身不负责内置 Node 分发包。流程要点：
 
-1. 检测 Node 是否存在、版本是否达标；
-
-2. 按 OS 选择安装渠道（Windows: `winget/choco/scoop`；macOS: `brew`；Linux: `pacman` 或 NodeSource + `apt/dnf/yum`）；比如 Windows，会按顺序：`winget` → `choco` → `scoop` 尝试安装 Node。
-
-3. 安装成功做一次 PATH 刷新（重读 Machine/User 的 `Path` 到当前 `$env:Path`）然后继续流程。
-
-4. **潜在问题**：Windows 版本在安装完 Node 后，并没有像 macOS/Linux 版本一样做**安装后再次校验 active shell Node 版本**的逻辑（「装完必须 ≥22」的二次强校验），可能会导致 Node 仍然使用旧版的问题。
-
-   比如，用户之前使用 Node 官网 MSI 安装过旧版 Node，脚本会尝试用 `winget/choco/scoop` 再装一份（通常是 LTS），但不保证自动覆盖或卸载 MSI 安装，也不保证 `PATH` 一定切到新 Node；若仍解析到旧版，需要用户调整 `PATH` 或卸掉旧安装。
-
-5. 安装过程中的问题，可以参考：[故障排除](https://docs.openclaw.ai/zh-CN/install/installer#%E6%95%85%E9%9A%9C%E6%8E%92%E9%99%A4)。
+1. **检测**：用 `node -v` 判断是否存在且主版本 **≥ 22**。
+2. **安装顺序**：`winget` → Chocolatey → Scoop；若无任一包管理器则提示前往 Node 官网或安装 winget。
+3. **PATH**：安装或检测到 Node 后，会**重读** Machine/User 的 `Path` 合并进当前 `$env:Path`（至少 winget 分支成功后会再 `Check-Node` 验证）。
+4. **二次校验**：若自动安装 Node 后当前 shell 仍拿不到 ≥22，脚本会**报错并提示重开终端再运行**，避免 silent 继续。
+5. **环境并存**：与用户本机已装的其它 Node（如旧 MSI）并存时，仍以当前 shell 解析到的 `node` 为准；若 PATH 仍指向旧版，需用户自行调整 PATH 或卸载冲突安装。
+6. 通用故障可参考：[故障排除](https://docs.openclaw.ai/zh-CN/install/installer#%E6%95%85%E9%9A%9C%E6%8E%92%E9%99%A4)。
 
 ### 3. Git 安装分析
 
-Git 在 git 安装模式下是必须（`-InstallMethod git`），且默认的 npm 模式也“可能”依赖 Git，因为某些 npm 依赖会是 `github:`、`git+https:` 这类来源，npm 安装时会调用 git。不装 Git，最常见结果是 npm 报 `spawn git ENOENT` 或类似“找不到 git”错误。
+- **npm 模式（`-InstallMethod npm`）**：在安装 OpenClaw 前会 **`Ensure-Git` 成功**，即 Git 为**硬前置**（依赖安装过程中可能出现 `github:` / git 拉取等场景）；失败则 npm 安装阶段无法继续。
+- **git 模式**：同样必须先有可用的 `git`，再走克隆与 `pnpm` 构建。
+- **与「仅 winget 装 Git」类脚本的区别**：本脚本优先系统 PATH 中的 Git；若无则尝试**用户目录便携 MinGit**（从 GitHub 发行版解析 MinGit zip 下载解压）；仍失败才提示安装 Git for Windows。
 
 ### 4. OpenClaw 下载分析
 
-有两种安装路径：`-InstallMethod npm` 和 `-InstallMethod git`
+两种安装路径：`-InstallMethod npm` 与 `-InstallMethod git`。
 
-**npm 安装：**
+**npm 安装**
 
-- 先做前置检查（执行策略、Node、Git 可用性提示）
-- 然后调用： `npm install -g <installSpec> --no-fund --no-audit`
-- 其中 `<installSpec>` 由 `-Tag` 解析而来：
-  - 默认 `latest` -> `openclaw@latest`
-  - `main` -> `github:openclaw/openclaw#main`
-  - 其它 tag/version -> `openclaw@<tag>`
-- 安装后尝试把 `npm config get prefix` 加到用户 PATH。
+- 保证 Node（≥22）与 Git（`Ensure-Git`）后执行 `npm install -g "<installSpec>"`；安装过程中可临时设置 npm 相关环境变量以减少噪音、跳过部分可选下载等。
+- `<installSpec>` 由 `Resolve-NpmOpenClawInstallSpec` 根据 `-Tag` 生成，规则概要：
+  - 空或缺省 → `openclaw@latest`（内部会先规范 `Tag`）；
+  - 形如 `http(s):`、`file:`、`git+`/`github:`、盘符路径、UNC、相对路径、`.tgz` 等 → **原样**作为安装说明传给 npm；
+  - 否则 → `openclaw@<Tag>`（`beta` 等标签在脚本内与包名组合使用，以脚本当前逻辑为准）。
+- 安装结束后通过 **Ensure-OpenClawOnPath** 尝试把 npm 全局 bin（含 `openclaw.cmd` 的目录）写入用户 PATH。
 
-**git 安装：**
+**git 安装**
 
-- `git clone/pull` 仓库
-- `pnpm install`
-- `pnpm build`
-- 生成 `openclaw.cmd` 包装器并加到 PATH。
+- 可选卸载全局 npm 包 `openclaw`，避免与源码安装并存冲突。
+- `git clone` 官方仓库；在未禁用更新且工作区干净时 `git pull --rebase`。
+- **Remove-LegacySubmodule**：删除仓库内旧 `Peekaboo` 目录。
+- **Ensure-Pnpm** 后：`pnpm install`、`pnpm ui:build`（失败仅警告）、`pnpm build`。
+- 在 `%USERPROFILE%\.local\bin\openclaw.cmd` 写入调用 `dist\entry.js` 的包装，并把该目录加入用户 PATH。
+
+**装后统一行为（与仅「下载包」相关的部分）**
+
+- 若判定为**升级**或当前为 **git 安装**，会执行 **`openclaw doctor --non-interactive`**；若检测到网关服务已加载则尝试刷新/重启网关。
+- 全新安装且未指定 `-NoOnboard` 时，脚本会**直接调用 `openclaw onboard`** 进入引导（不仅是打印命令提示）。
 
 ## OpenClaw `onboard` 使用说明
 
