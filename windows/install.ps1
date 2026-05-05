@@ -1,6 +1,9 @@
 ﻿# OpenClaw Installer for Windows
 # Usage: powershell -c "irm https://openclaw.ai/install.ps1 | iex"
 #        powershell -c "& ([scriptblock]::Create((irm https://openclaw.ai/install.ps1))) -Tag beta -NoOnboard -DryRun"
+# 远程 raw（勿用 iwr ... | iex）：iwr 返回的是响应对象，5.1 下 iex 会误解析。请二选一：
+#   iex (irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install.ps1')
+#   iex ((iwr -useBasicParsing 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install.ps1').Content)
 #
 # 流程总览（主入口：Main）
 # 0 前置       — 参数、环境变量、退出码、横幅、PowerShell 版本、默认 GitDir
@@ -1049,7 +1052,7 @@ function Invoke-OpenClawDashboardBrowser {
         }
 
         Add-Type -AssemblyName PresentationFramework | Out-Null
-        $message = "已获取 Dashboard 地址：`n`n$dashboardUrl`n`n点击“确定”后将在浏览器中打开。"
+        $message = "已获取 Dashboard 地址：`n`n$dashboardUrl`n`n点击确定后将在浏览器中打开。"
         $result = [System.Windows.MessageBox]::Show(
             $message,
             "OpenClaw Dashboard",
