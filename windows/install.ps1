@@ -4,8 +4,8 @@
 #
 # 流程总览（主入口：Main）
 # 0 前置       — 参数、环境变量、退出码、横幅、PowerShell 版本、默认 GitDir
-# 1 Node.js    — 1.1 检测版本；1.2 自动安装
-# 1.3 已有安装 — 是否已存在 openclaw（升级判断）
+# 1 Node.js    — 1.1 检测版本；1.2 自动安装；1.3 设置 npm 淘宝镜像
+# 1.4 已有安装 — 是否已存在 openclaw（升级判断）
 # 2 Git        — 2.1 检测；2.2 进程 PATH；2.3 便携目录与 git.exe；2.4 启用便携；2.5 解析 MinGit；2.6 安装便携；2.7 确保可用
 # 3 命令与 PATH — openclaw/npm/pnpm 路径、调用、全局 bin、补全 PATH、确保 pnpm
 # 4 安装本体   — 4.1 npm 包说明；4.2 npm 全局安装；4.3 Git 源码克隆构建；4.4.1/4.4.2 遗留子模块目录解析与删除
@@ -172,8 +172,20 @@ function Install-Node {
     return $false
 }
 
+# 1.3 将 npm 源切换为淘宝镜像；失败只警告，不阻断安装。
+function Set-NpmRegistry {
+    $registry = "https://registry.npmmirror.com/"
+    Write-Host "[*] Setting npm registry to $registry ..." -ForegroundColor Yellow
+    try {
+        & (Get-NpmCommandPath) config set registry $registry
+        Write-Host "[OK] npm registry set to $registry" -ForegroundColor Green
+    } catch {
+        Write-Host "[!] Failed to set npm registry: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 # -----------------------------------------------------------------------------
-# 1.3 已有安装（升级判断）
+# 1.4 已有安装（升级判断）
 # -----------------------------------------------------------------------------
 
 # 若 PATH 上已有 openclaw，判定为升级场景并输出提示。
@@ -798,6 +810,9 @@ function Main {
             return (Fail-Install)
         }
     }
+
+    # Step 1.3: 设置 npm 淘宝镜像
+    Set-NpmRegistry
 
     $finalGitDir = $null
 
