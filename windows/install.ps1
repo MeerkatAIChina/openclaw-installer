@@ -1,6 +1,7 @@
 # OpenClaw Installer for Windows (PowerShell)
 # Usage: iwr -useb https://openclaw.ai/install.ps1 | iex
-# Or: & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
+# 本仓库 GitHub 单 URL：iwr -useb https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/install.ps1 | iex
+# 或: & ([scriptblock]::Create((iwr -useb https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/install.ps1))) -NoOnboard
 
 param(
     [ValidateSet("npm", "git")]
