@@ -1,4 +1,4 @@
-# OpenClaw Installer for Windows
+﻿# OpenClaw Installer for Windows
 # Usage: powershell -c "irm https://openclaw.ai/install.ps1 | iex"
 #        powershell -c "& ([scriptblock]::Create(((irm https://openclaw.ai/install.ps1).TrimStart([char]0xFEFF)))) -Tag beta -DryRun"
 # 远程一键：字符串首字符若为 UTF-8 BOM（U+FEFF），5.1 下 iex 会误解析 param；须 TrimStart：

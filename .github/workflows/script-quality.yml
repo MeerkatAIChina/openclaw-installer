@@ -66,4 +66,15 @@ jobs:
           Install-Module -Name Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck
       - name: Run Pester
         shell: pwsh
-        run: Invoke-Pester -Path ./windows/tests -CI
+        run: |
+          $testDir = Join-Path $PWD 'windows/tests'
+          if (-not (Test-Path -LiteralPath $testDir -PathType Container)) {
+            Write-Host "No windows/tests directory; skipping Pester."
+            exit 0
+          }
+          $tests = @(Get-ChildItem -LiteralPath $testDir -Filter *.Tests.ps1 -Recurse -File -ErrorAction SilentlyContinue)
+          if ($tests.Count -eq 0) {
+            Write-Host "No *.Tests.ps1 under windows/tests; skipping Pester."
+            exit 0
+          }
+          Invoke-Pester -Path $testDir -CI
