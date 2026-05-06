@@ -1,5 +1,5 @@
 ---
-description: PowerShell 风格与函数结构约束
+description: PowerShell 风格、编码与函数结构约束
 globs:
   - "**/*.ps1"
 alwaysApply: false
@@ -14,3 +14,10 @@ alwaysApply: false
 - 避免行尾分号。
 - 避免反引号续行，优先括号与 splatting。
 - 公共接口命名使用 PascalCase。
+
+## 文件编码（强制）
+
+- 凡含非 ASCII 字符（中文、全角符号等）的 `.ps1`，**必须**保存为 **UTF-8 带 BOM**（UTF-8 with signature / `EF BB BF` 开头）。
+- **禁止**以「UTF-8 无 BOM」保存上述脚本：在 Windows PowerShell 5.1 下无 BOM 时按系统 ANSI 解析，易导致中文乱码或解析失败。
+- 新建或编辑此类脚本后应确认文件头为 UTF-8 BOM；PowerShell 7+ 虽更宽容，仍须与本仓库约定一致。
+- 校验：在仓库根目录执行 `pwsh -NoProfile -File ./scripts/check-ps1-utf8-bom.ps1`（仅检查已被 Git 跟踪的 `*.ps1`；CI 在 `script-quality.yml` 的 `powershell-check` 任务中已启用）。
