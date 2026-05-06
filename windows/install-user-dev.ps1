@@ -1,4 +1,4 @@
-﻿# OpenClaw Installer for Windows
+# OpenClaw Installer for Windows
 # Usage: powershell -c "irm https://openclaw.ai/install.ps1 | iex"
 #        powershell -c "& ([scriptblock]::Create(((irm https://openclaw.ai/install.ps1).TrimStart([char]0xFEFF)))) -Tag beta -DryRun"
 # 远程一键：字符串首字符若为 UTF-8 BOM（U+FEFF），5.1 下 iex 会误解析 param；须 TrimStart：
@@ -1055,30 +1055,30 @@ function Main {
     $finalGitDir = $null
 
     # Step 2: 安装 OpenClaw（git/npm 安装两个分支）
-    # if ($InstallMethod -eq "git") {
-    #     try {
-    #         $npmCommand = Get-NpmCommandPath
-    #         if ($npmCommand) {
-    #             & $npmCommand uninstall -g openclaw 2>$null | Out-Null
-    #             Write-Host "[OK] Removed npm global install if present" -ForegroundColor Green
-    #         }
-    #     }
-    #     catch { }
-    #     $finalGitDir = $GitDir
-    #     if (-not (Install-OpenClawFromGit -RepoDir $GitDir -SkipUpdate:$NoGitUpdate)) {
-    #         return (Fail-Install)
-    #     }
-    # }
-    # else {
-    #     $gitWrapper = Join-Path (Join-Path $env:USERPROFILE ".local\\bin") "openclaw.cmd"
-    #     if (Test-Path $gitWrapper) {
-    #         Remove-Item -Force $gitWrapper
-    #         Write-Host "[OK] Removed git wrapper (switching to npm)" -ForegroundColor Green
-    #     }
-    #     if (-not (Install-OpenClaw)) {
-    #         return (Fail-Install)
-    #     }
-    # }
+    if ($InstallMethod -eq "git") {
+        try {
+            $npmCommand = Get-NpmCommandPath
+            if ($npmCommand) {
+                & $npmCommand uninstall -g openclaw 2>$null | Out-Null
+                Write-Host "[OK] Removed npm global install if present" -ForegroundColor Green
+            }
+        }
+        catch { }
+        $finalGitDir = $GitDir
+        if (-not (Install-OpenClawFromGit -RepoDir $GitDir -SkipUpdate:$NoGitUpdate)) {
+            return (Fail-Install)
+        }
+    }
+    else {
+        $gitWrapper = Join-Path (Join-Path $env:USERPROFILE ".local\\bin") "openclaw.cmd"
+        if (Test-Path $gitWrapper) {
+            Remove-Item -Force $gitWrapper
+            Write-Host "[OK] Removed git wrapper (switching to npm)" -ForegroundColor Green
+        }
+        if (-not (Install-OpenClaw)) {
+            return (Fail-Install)
+        }
+    }
 
     if (-not (Ensure-OpenClawOnPath)) {
         Write-Host "Install completed, but OpenClaw is not on PATH yet." -ForegroundColor Yellow
@@ -1090,9 +1090,9 @@ function Main {
 
     # Step 3: 如果升级或用 git 安装，则调用 Run-Doctor 进行自检或迁移操作
     # 确保在升级或源码安装后运行必要的自检和升级逻辑，防止遗留问题。
-    # if ($isUpgrade -or $InstallMethod -eq "git") {
-    #     Run-Doctor
-    # }
+    if ($isUpgrade -or $InstallMethod -eq "git") {
+        Run-Doctor
+    }
 
     # 获取已安装的 OpenClaw 版本
     $installedVersion = $null

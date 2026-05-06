@@ -963,11 +963,14 @@ function Main {
 
     Refresh-GatewayServiceIfLoaded
 
-    # Step 3: Run doctor for migrations if upgrading or git install
+    # Step 3: 如果升级或用 git 安装，则调用 Run-Doctor 进行自检或迁移操作
+    # 确保在升级或源码安装后运行必要的自检和升级逻辑，防止遗留问题。
     if ($isUpgrade -or $InstallMethod -eq "git") {
         Run-Doctor
     }
 
+
+    # 获取已安装的 OpenClaw 版本
     $installedVersion = $null
     try {
         $installedVersion = (Invoke-OpenClawCommand --version 2>$null).Trim()

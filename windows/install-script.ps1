@@ -3,6 +3,7 @@
     [ValidateSet("npm", "git")]
     [string]$InstallMethod = "npm",
     [string]$GitDir,
+    [switch]$NoOnboard,
     [switch]$NoGitUpdate,
     [switch]$DryRun
 )
@@ -35,24 +36,12 @@ function Complete-Install {
     throw "OpenClaw installation failed with exit code $($script:InstallExitCode)."
 }
 
-
-function Ask-YesNo {
-    param(
-        [string]$Prompt,
-        [string]$Default = "Y"
-    )
-    $hint = if ($Default -eq "Y") { "(Y/n)" } else { "(y/N)" }
-    $answer = Read-Host "$Prompt $hint"
-    if ([string]::IsNullOrWhiteSpace($answer)) { $answer = $Default }
-    return $answer -match '^[Yy]'
-}
-
 Write-Host ""
 Write-Host "  ╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
 Write-Host "  ║                                                           ║" -ForegroundColor Cyan
-Write-Host "  ║          🦞  OpenClaw Easy Deploy  🦞                     ║" -ForegroundColor Cyan
+Write-Host "  ║          🦞  OpenClaw Easy Deploy  🦞                    ║" -ForegroundColor Cyan
 Write-Host "  ║                                                           ║" -ForegroundColor Cyan
-Write-Host "  ║     让 OpenClaw 部署变得简单 - 零技术门槛，一键安装       ║" -ForegroundColor Cyan
+Write-Host "  ║     让 OpenClaw 部署变得简单 - 零技术门槛，一键安装        ║" -ForegroundColor Cyan
 Write-Host "  ║                                                           ║" -ForegroundColor Cyan
 Write-Host "  ║                    猫鼬AI出品                             ║" -ForegroundColor Cyan
 Write-Host "  ╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
@@ -75,6 +64,11 @@ if (-not $PSBoundParameters.ContainsKey("InstallMethod")) {
 if (-not $PSBoundParameters.ContainsKey("GitDir")) {
     if (-not [string]::IsNullOrWhiteSpace($env:OPENCLAW_GIT_DIR)) {
         $GitDir = $env:OPENCLAW_GIT_DIR
+    }
+}
+if (-not $PSBoundParameters.ContainsKey("NoOnboard")) {
+    if ($env:OPENCLAW_NO_ONBOARD -eq "1") {
+        $NoOnboard = $true
     }
 }
 if (-not $PSBoundParameters.ContainsKey("NoGitUpdate")) {
@@ -157,14 +151,12 @@ function Install-Node {
 
 
     Write-Host ""
-    Write-Host "无法自动安装 Node.js，请手动安装："
-    Write-Host "  1. 点击下载: https://registry.npmmirror.com/-/binary/node/v24.15.0/node-v24.15.0-x64.msi" -ForegroundColor Yellow
-    Write-Host "  2. 运行 node-v24.15.0-x64.msi 安装包" -ForegroundColor Yellow
+    Write-Host "Error: Could not find a package manager (winget, choco, or scoop)" -ForegroundColor Red
     Write-Host ""
-    $open = Ask-YesNo "是否现在打开 Node.js 下载页面?"
-    if ($open) {
-        Start-Process "https://registry.npmmirror.com/-/binary/node/v24.15.0/node-v24.15.0-x64.msi"
-    }
+    Write-Host "Please install Node.js 22+ manually:" -ForegroundColor Yellow
+    Write-Host "  https://nodejs.org/en/download/" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Or install winget (App Installer) from the Microsoft Store." -ForegroundColor Gray
     return $false
 }
 
@@ -700,7 +692,7 @@ function Remove-LegacySubmodule {
 
 
 function Run-Doctor {
-    Write-Host "[*] 运行 doctor 程序以迁移设置..." -ForegroundColor Yellow
+    Write-Host "[*] Running doctor to migrate settings..." -ForegroundColor Yellow
     try {
         Invoke-OpenClawCommand doctor --non-interactive
     }
@@ -790,120 +782,6 @@ function Test-GatewayHealthy {
 }
 
 
-function Invoke-OnboardWizard {
-    $choiceToApiKeyParam = @{
-        'custom-api-key'       = '--custom-api-key'
-        'moonshot-api-key'     = '--moonshot-api-key'
-        'moonshot-api-key-cn'  = '--moonshot-api-key'
-        'kimi-code-api-key'    = '--kimi-code-api-key'
-        'zai-api-key'          = '--zai-api-key'
-        'zai-coding-global'    = '--zai-api-key'
-        'zai-coding-cn'        = '--zai-api-key'
-        'zai-global'           = '--zai-api-key'
-        'zai-cn'               = '--zai-api-key'
-        'minimax-global-api'   = '--minimax-api-key'
-        'minimax-global-oauth' = '--minimax-api-key'
-        'minimax-cn-oauth'     = '--minimax-api-key'
-        'minimax-cn-api'       = '--minimax-api-key'
-        'openai-codex'         = '--openai-api-key'
-        'openai-api-key'       = '--openai-api-key'
-    }
-
-    $groups = [ordered]@{
-        '自定义'          = @('custom-api-key')
-        'MoonShot'        = @('moonshot-api-key', 'moonshot-api-key-cn')
-        'Kimi Coding'     = @('kimi-code-api-key')
-        '智谱 (ZAI)'      = @('zai-api-key', 'zai-coding-global', 'zai-coding-cn', 'zai-global', 'zai-cn')
-        'MiniMax'         = @('minimax-global-api', 'minimax-global-oauth', 'minimax-cn-oauth', 'minimax-cn-api')
-        'OpenAI'          = @('openai-codex', 'openai-api-key')
-    }
-
-    $allChoices = [System.Collections.Generic.List[string]]::new()
-    foreach ($g in $groups.Values) {
-        foreach ($c in $g) { $allChoices.Add($c) }
-    }
-
-    Write-Host ""
-    Write-Host "━━━ 选择模型认证方式 ━━━" -ForegroundColor Cyan
-    $idx = 1
-    foreach ($groupName in $groups.Keys) {
-        Write-Host ""
-        Write-Host "  [$groupName]" -ForegroundColor Yellow
-        foreach ($choice in $groups[$groupName]) {
-            Write-Host ("  {0,2}. {1}" -f $idx, $choice)
-            $idx++
-        }
-    }
-    Write-Host ""
-
-    $selectedChoice = $null
-    while ($null -eq $selectedChoice) {
-        $raw = Read-Host "请输入编号 (1-$($allChoices.Count))"
-        if ($raw -match '^\d+$') {
-            $n = [int]$raw
-            if ($n -ge 1 -and $n -le $allChoices.Count) {
-                $selectedChoice = $allChoices[$n - 1]
-            }
-        }
-        if ($null -eq $selectedChoice) {
-            Write-Host "[!] 请输入 1 到 $($allChoices.Count) 之间的数字。" -ForegroundColor Yellow
-        }
-    }
-    Write-Host "[OK] 已选择：$selectedChoice" -ForegroundColor Green
-
-    $apiKeyParam = $choiceToApiKeyParam[$selectedChoice]
-
-    $apiKey = ""
-    while ([string]::IsNullOrWhiteSpace($apiKey)) {
-        $apiKey = Read-Host "请输入 API Key ($apiKeyParam)"
-        if ([string]::IsNullOrWhiteSpace($apiKey)) {
-            Write-Host "[!] API Key 不能为空。" -ForegroundColor Yellow
-        }
-    }
-
-    $extraArgs = @("--auth-choice", $selectedChoice, $apiKeyParam, $apiKey)
-
-    if ($selectedChoice -eq 'custom-api-key') {
-        $baseUrl = ""
-        while ([string]::IsNullOrWhiteSpace($baseUrl)) {
-            $baseUrl = Read-Host "请输入 Custom Base URL (--custom-base-url)"
-            if ([string]::IsNullOrWhiteSpace($baseUrl)) {
-                Write-Host "[!] Base URL 不能为空。" -ForegroundColor Yellow
-            }
-        }
-
-        $modelId = ""
-        while ([string]::IsNullOrWhiteSpace($modelId)) {
-            $modelId = Read-Host "请输入 Custom Model ID (--custom-model-id)"
-            if ([string]::IsNullOrWhiteSpace($modelId)) {
-                Write-Host "[!] Model ID 不能为空。" -ForegroundColor Yellow
-            }
-        }
-
-        $extraArgs += @("--custom-base-url", $baseUrl, "--custom-model-id", $modelId)
-    }
-
-    Write-Host ""
-    Write-Host "开始执行官方非交互式 onboard 向导，这可能需要几分钟..." -ForegroundColor Cyan
-    Write-Host ""
-
-    $onboardArgs = @(
-        "onboard",
-        "--non-interactive",
-        "--accept-risk",
-        "--flow", "quickstart",
-        "--install-daemon",
-        "--skip-channels",
-        "--skip-skills",
-        "--skip-search",
-        "--skip-ui",
-        "--json"
-    ) + $extraArgs
-
-    Invoke-OpenClawCommand @onboardArgs
-}
-
-
 function Install-Skills {
     $skills = @(
         'self-improving-agent',
@@ -965,7 +843,9 @@ function Main {
                 Write-Host "[OK] Git update: enabled" -ForegroundColor Green
             }
         }
-        Write-Host "[OK] Onboard: 正式安装时将询问是否执行" -ForegroundColor Green
+        if ($NoOnboard) {
+            Write-Host "[OK] Onboard: skipped" -ForegroundColor Green
+        }
         return $true
     }
 
@@ -1061,23 +941,44 @@ function Main {
         Write-Host "OpenClaw 安装成功!" -ForegroundColor Green
     }
     Write-Host ""
-
     if ($isUpgrade) {
-
         $updateMessages = @(
-            "升级成功！新技能已解锁，不用谢。",
-            "代码焕然一新，小龙虾依旧。有没有想我？",
-            "更新完成，我学会了一些新招式。"
+            "Leveled up! New skills unlocked. You're welcome.",
+            "Fresh code, same lobster. Miss me?",
+            "Back and better. Did you even notice I was gone?",
+            "Update complete. I learned some new tricks while I was out.",
+            "Upgraded! Now with 23% more sass.",
+            "I've evolved. Try to keep up.",
+            "New version, who dis? Oh right, still me but shinier.",
+            "Patched, polished, and ready to pinch. Let's go.",
+            "The lobster has molted. Harder shell, sharper claws.",
+            "Update done! Check the changelog or just trust me, it's good.",
+            "Reborn from the boiling waters of npm. Stronger now.",
+            "I went away and came back smarter. You should try it sometime.",
+            "Update complete. The bugs feared me, so they left.",
+            "New version installed. Old version sends its regards.",
+            "Firmware fresh. Brain wrinkles: increased.",
+            "I've seen things you wouldn't believe. Anyway, I'm updated.",
+            "Back online. The changelog is long but our friendship is longer.",
+            "Upgraded! Peter fixed stuff. Blame him if it breaks.",
+            "Molting complete. Please don't look at my soft shell phase.",
+            "Version bump! Same chaos energy, fewer crashes (probably)."
         )
         Write-Host (Get-Random -InputObject $updateMessages) -ForegroundColor Gray
         Write-Host ""
     }
     else {
-
         $completionMessages = @(
-            "小龙虾到岗，从此你的终端不再一样！",
-            "我上线啦，准备一起搞事情吧！",
-            "安装好啦，你的效率马上变得有点不一样了。"
+            "Ahh nice, I like it here. Got any snacks? ",
+            "Home sweet home. Don't worry, I won't rearrange the furniture.",
+            "I'm in. Let's cause some responsible chaos.",
+            "Installation complete. Your productivity is about to get weird.",
+            "Settled in. Time to automate your life whether you're ready or not.",
+            "Cozy. I've already read your calendar. We need to talk.",
+            "Finally unpacked. Now point me at your problems.",
+            "cracks claws Alright, what are we building?",
+            "The lobster has landed. Your terminal will never be the same.",
+            "All done! I promise to only judge your code a little bit."
         )
         Write-Host (Get-Random -InputObject $completionMessages) -ForegroundColor Gray
         Write-Host ""
@@ -1091,28 +992,25 @@ function Main {
 
 
     if ($isUpgrade) {
-        Write-Host "升级完成，您可以运行 " -NoNewline
+        Write-Host "Upgrade complete. Run " -NoNewline
         Write-Host "openclaw doctor" -ForegroundColor Cyan -NoNewline
-        Write-Host " 检查是否有其他迁移操作需要执行。"
-        Write-Host ""
-
-        if (Ask-YesNo -Prompt "是否开始 onboard 向导（注意：可能会覆盖当前配置）？" -Default "N") {
-            Invoke-OnboardWizard
-        }
+        Write-Host " to check for additional migrations."
     }
     else {
-        Invoke-OnboardWizard
-    }
-
-
-    if ($isUpgrade) {
-        Write-Host ""
-        if (Ask-YesNo -Prompt "是否安装预设 Skills（注意：可能会覆盖当前配置）？" -Default "Y") {
-            Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
-            Install-Skills
+        if ($NoOnboard) {
+            Write-Host "Skipping onboard (requested). Run " -NoNewline
+            Write-Host "openclaw onboard" -ForegroundColor Cyan -NoNewline
+            Write-Host " later."
+        }
+        else {
+            Write-Host "Starting setup..." -ForegroundColor Cyan
+            Write-Host ""
+            Invoke-OpenClawCommand onboard --non-interactive --accept-risk --flow quickstart --skip-channels --skip-skills --skip-search --skip-ui
         }
     }
-    else {
+
+
+    if (-not $isUpgrade) {
         Write-Host ""
         Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
         Install-Skills
@@ -1126,82 +1024,6 @@ $mainResults = @(Main)
 $installSucceeded = $mainResults.Count -gt 0 -and $mainResults[-1] -eq $true
 Complete-Install -Succeeded:$installSucceeded
 
-
-function Invoke-OpenClawDashboardBrowser {
-    Write-Host ""
-    $openclawPath = Get-OpenClawCommandPath
-    if (-not $openclawPath) {
-        Write-Host "[!] openclaw command not found; cannot launch dashboard." -ForegroundColor Yellow
-        return
-    }
-
-    $stdoutPath = Join-Path $env:TEMP ("openclaw-dashboard-" + [guid]::NewGuid().ToString("N") + ".out.log")
-    $stderrPath = Join-Path $env:TEMP ("openclaw-dashboard-" + [guid]::NewGuid().ToString("N") + ".err.log")
-    $dashboardUrl = $null
-    $timeoutSeconds = 20
-    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
-    $dashboardProcess = $null
-
-    Write-Host "[*] Launching OpenClaw dashboard..." -ForegroundColor Yellow
-    try {
-        $dashboardProcess = Start-Process `
-            -FilePath $openclawPath `
-            -ArgumentList @("dashboard") `
-            -RedirectStandardOutput $stdoutPath `
-            -RedirectStandardError $stderrPath `
-            -PassThru
-
-        while ((Get-Date) -lt $deadline) {
-            Start-Sleep -Milliseconds 500
-
-            if (Test-Path $stdoutPath) {
-                $stdoutContent = Get-Content -Path $stdoutPath -Raw -ErrorAction SilentlyContinue
-                if ($stdoutContent -match 'Dashboard URL:\s*(https?://\S*#token=\S+)') {
-                    $dashboardUrl = $Matches[1]
-                    break
-                }
-            }
-
-            if ($dashboardProcess.HasExited) {
-                break
-            }
-        }
-
-        if (-not $dashboardUrl) {
-            Write-Host "[!] Could not retrieve dashboard URL with token within $timeoutSeconds seconds." -ForegroundColor Yellow
-            Write-Host "Run \"openclaw dashboard\" manually and copy the \"Dashboard URL:\" line." -ForegroundColor Yellow
-            return
-        }
-
-        Add-Type -AssemblyName PresentationFramework | Out-Null
-        $message = "已获取 Dashboard 地址：`n`n$dashboardUrl`n`n点击确定后将在浏览器中打开。"
-        $result = [System.Windows.MessageBox]::Show(
-            $message,
-            "OpenClaw Dashboard",
-            [System.Windows.MessageBoxButton]::OKCancel,
-            [System.Windows.MessageBoxImage]::Information
-        )
-
-        if ($result -eq [System.Windows.MessageBoxResult]::OK) {
-            Start-Process $dashboardUrl | Out-Null
-            Write-Host "[OK] Dashboard URL opened in browser." -ForegroundColor Green
-        }
-        else {
-            Write-Host "[!] Dashboard open canceled by user." -ForegroundColor Yellow
-        }
-    }
-    finally {
-        if ($dashboardProcess -and -not $dashboardProcess.HasExited) {
-            $dashboardProcess.Kill()
-        }
-        if (Test-Path $stdoutPath) {
-            Remove-Item -Force $stdoutPath
-        }
-        if (Test-Path $stderrPath) {
-            Remove-Item -Force $stderrPath
-        }
-    }
-}
 
 if ($installSucceeded -and !$NoDashboard) {
     Write-Host ""
