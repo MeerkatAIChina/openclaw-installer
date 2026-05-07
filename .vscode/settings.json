@@ -1,0 +1,15 @@
+{
+  "files.insertFinalNewline": true,
+  "[shellscript]": {
+    "editor.defaultFormatter": "mkhl.shfmt",
+    "editor.formatOnSave": true,
+    "files.eol": "\n"
+  },
+  "[powershell]": {
+    "files.eol": "\r\n"
+  },
+  "bashIde.shellcheckPath": "",
+  "shellcheck.enable": true,
+  "shellcheck.run": "onSave",
+  "shfmt.executableArgs": ["-i", "4"]
+}
