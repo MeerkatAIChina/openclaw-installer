@@ -318,7 +318,7 @@ print_gum_status() {
 print_installer_banner() {
     if [[ -n "$GUM" ]]; then
         local title tagline hint card
-        title="$("$GUM" style --foreground "#ff4d4d" --bold "🦞 OpenClaw 安装神器")"
+        title="$("$GUM" style --foreground "#ff4d4d" --bold "🦞 OpenClaw Installer By MeerkatAI")"
         tagline="$("$GUM" style --foreground "#8892b0" "$TAGLINE")"
         hint="$("$GUM" style --foreground "#5a6480" "modern installer mode")"
         card="$(printf '%s\n%s\n%s' "$title" "$tagline" "$hint")"
@@ -328,7 +328,7 @@ print_installer_banner() {
     fi
 
     echo -e "${ACCENT}${BOLD}"
-    echo "  🦞 OpenClaw Installer"
+    echo "  🦞 OpenClaw Installer By MeerkatAI"
     echo -e "${NC}${INFO}  ${TAGLINE}${NC}"
     echo ""
 }
@@ -2632,6 +2632,7 @@ build_onboard_command() {
     if [[ -n "${INSTALL_GATEWAY_PORT}" ]]; then
         ONBOARD_CMD+=("--gateway-port" "${INSTALL_GATEWAY_PORT}")
     fi
+    # todo: 添加其他 onboard 参数
 }
 
 # 构造可显示给用户的 onboard 命令数组（使用 openclaw 而非绝对路径）
@@ -2661,7 +2662,7 @@ format_onboard_display_command() {
     echo "${formatted% }"
 }
 
-# 若工作区残留 BOOTSTRAP.md 则继续运行 openclaw onboard 完成后续设置
+# 若工作区残留 BOOTSTRAP.md（说明初始化流程未完成） 则继续运行 openclaw onboard 完成后续设置（完成会自动移除 BOOTSTRAP.md）
 run_bootstrap_onboarding_if_needed() {
     if [[ "${NO_ONBOARD}" == "1" ]]; then
         return
@@ -2697,6 +2698,7 @@ run_bootstrap_onboarding_if_needed() {
         return
     fi
 
+    # 构建并执行 onboard 命令
     build_onboard_command "$claw"
     "${ONBOARD_CMD[@]}" || {
         local onboard_cmd=""
@@ -3004,12 +3006,14 @@ main() {
 
     # ---- 装后 3：根据安装来源/是否升级，分支引导 doctor / plugins / onboard ----
     if [[ "$INSTALL_METHOD" == "git" && -n "$final_git_dir" ]]; then
+        # git 安装（且 final_git_dir 非空）时，展示源码安装的相关信息，以及切换到 npm 安装的方法。
         ui_section "Source install details"
         ui_kv "Checkout" "$final_git_dir"
         ui_kv "Wrapper" "$HOME/.local/bin/openclaw"
         ui_kv "Update command" "openclaw update"
         ui_kv "Switch to npm" "curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method npm"
     elif [[ "$is_upgrade" == "true" ]]; then
+        # 升级时，如果有交互终端(TTY)，尝试执行 doctor 并自动升级插件
         ui_info "Upgrade complete"
         if [[ -r /dev/tty && -w /dev/tty ]]; then
             local claw="${OPENCLAW_BIN:-}"
@@ -3043,10 +3047,12 @@ main() {
         fi
     else
         if [[ "$NO_ONBOARD" == "1" || "$skip_onboard" == "true" ]]; then
+            # 主动跳过 onboarding
             local onboard_cmd=""
             onboard_cmd="$(format_onboard_display_command)"
             ui_info "Skipping onboard (requested); run ${onboard_cmd} later"
         else
+            # 若配置文件已经存在，则运行 doctor 并自动跳过 onboarding
             if install_config_already_exists; then
                 ui_info "Config already present; running doctor"
                 run_doctor
@@ -3054,6 +3060,9 @@ main() {
                 ui_info "Config already present; skipping onboarding"
                 skip_onboard=true
             fi
+
+            # 在有 TTY（终端交互环境）时，执行 onboarding 命令
+            # todo: 重新拼接交互式的 onboard 命令
             ui_info "Starting setup"
             echo ""
             if [[ -r /dev/tty && -w /dev/tty ]]; then
@@ -3070,6 +3079,9 @@ main() {
                 build_onboard_command "$claw"
                 exec "${ONBOARD_CMD[@]}"
             fi
+
+            # 在没有 TTY（终端交互环境）时，提示用户需要手动运行 onboarding
+            # todo: 重新拼接非交互式的 onboard 命令，而不是仅仅是提示
             local onboard_cmd=""
             onboard_cmd="$(format_onboard_display_command)"
             ui_info "No TTY; run ${onboard_cmd} to finish setup"
