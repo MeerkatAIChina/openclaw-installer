@@ -81,9 +81,7 @@ OpenClaw 官方有两种 `install.ps1` 脚本，分别为：
 
 - 设置 `npm` 下载源为淘宝镜像。
 
-  新增 `Set-NpmRegistryMirror` 函数，设置淘宝镜像。
-
-  对于 `install-user.ps1` ，如果 node 安装失败，会有 node 安装教程提示。
+  `install-user.ps1` 新增 `Set-NpmRegistryMirror` 函数，设置淘宝镜像。如果 node 安装失败，会有 node 安装教程提示。
 
 - 调用 `onboard` 的同时，传递部分参数，实现非交互向导。
 

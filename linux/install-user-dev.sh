@@ -1688,7 +1688,7 @@ install_node() {
             fi
         else
             ui_error "Could not detect package manager"
-            echo "Please install Node.js 22+ manually: https://nodejs.org"
+            echo "Please install Node.js 22+ manually: https://registry.npmmirror.com/-/binary/node/v24.15.0/node-v24.15.0-x64.msi"
             exit 1
         fi
 
@@ -1851,6 +1851,12 @@ fix_npm_permissions() {
 
     export PATH="$HOME/.npm-global/bin:$PATH"
     ui_success "npm configured for user installs"
+}
+
+# 为当前安装进程统一设置 npm registry（不写入用户全局 npm 配置）
+set_npm_registry() {
+    export NPM_CONFIG_REGISTRY="https://registry.npmmirror.com/"
+    ui_info "Using npm registry: ${NPM_CONFIG_REGISTRY}"
 }
 
 # npm 全局安装后若 bin 目录缺少 openclaw 软链则补建一个
@@ -2859,12 +2865,15 @@ main() {
         ui_error "Node.js v22+ is required but could not be activated on PATH"
         echo "Detected node: $(command -v node 2>/dev/null || echo '(not found)')"
         echo "Current version: $(node -v 2>/dev/null || echo 'unknown')"
-        echo "Install Node.js 22+ manually: https://nodejs.org"
+        echo "Install Node.js 22+ manually: https://registry.npmmirror.com/-/binary/node/v24.15.0/node-v24.15.0-x64.msi"
         exit 1
     fi
 
     # ===== Stage 2/3：安装 OpenClaw 本体（git 源码 或 npm 全局） =====
     ui_stage "Installing OpenClaw"
+
+    # 设置 npm registry 为淘宝镜像
+    set_npm_registry
 
     local final_git_dir=""
     if [[ "$INSTALL_METHOD" == "git" ]]; then
