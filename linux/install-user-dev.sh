@@ -14,7 +14,7 @@ set -euo pipefail
 #                 npm: 清理 git wrapper、check_git/install_git、fix_npm_permissions、install_openclaw（含 build-tools/EEXIST/ENOTEMPTY 重试）、compat shim
 #                 git: 清理 npm 全局、git clone/pull、ensure_pnpm、ui:build/build、写入 ~/.local/bin/openclaw wrapper
 # 6 收尾       — Stage[3/3]：resolve_openclaw_bin、warn_duplicate_openclaw_global_installs、PATH 缺失警告、refresh_gateway_service_if_loaded
-# 7 装后流程   — 升级/git: run_doctor + plugins update --all；全新: run_bootstrap_onboarding_if_needed / openclaw onboard 接管 TTY；预装 Skills
+# 7 装后流程   — 升级/git: run_doctor + plugins update --all；全新: run_bootstrap_onboarding_if_needed / openclaw onboard 接管 TTY
 # 8 结束       — gateway daemon 检测重启、可选 dashboard 打开、show_footer_links
 
 BOLD='\033[1m'
@@ -2621,9 +2621,14 @@ resolve_supplied_install_profile() {
 append_quickstart_onboard_flags() {
     local -n cmd_ref="$1"
     cmd_ref+=("--accept-risk")
+    cmd_ref+=("--non-interactive")
     cmd_ref+=("--reset")
     cmd_ref+=("--reset-scope" "full")
     cmd_ref+=("--flow" "quickstart")
+    cmd_ref+=("--mode" "local")
+    cmd_ref+=("--gateway-bind" "loopback")
+    cmd_ref+=("--gateway-auth" "token")
+    cmd_ref+=("--install-daemon")
     cmd_ref+=("--skip-channels")
     cmd_ref+=("--skip-skills")
     cmd_ref+=("--skip-search")
@@ -2676,179 +2681,6 @@ format_onboard_display_command() {
     local formatted=""
     printf -v formatted '%q ' "${ONBOARD_DISPLAY_CMD[@]}"
     echo "${formatted% }"
-}
-
-# Skills 预设列表
-PRESET_SKILL_SLUGS=(
-    self-improving-agent
-    data-analyst
-    find-skills
-    humanizer
-    markdown-converter
-    memory-setup
-    multi-search-engine
-    nano-pdf
-    ontology
-    proactive-agent
-    skill-vetter
-    summarize
-)
-# Skills 中文说明
-PRESET_SKILL_ZH=(
-    '自我迭代智能体'
-    '专业数据分析'
-    '智能检索匹配可用技能'
-    '文本拟人化润色'
-    '各类格式与 Markdown 互转'
-    '配置初始化智能记忆库'
-    '多引擎聚合搜索'
-    '轻量 PDF 处理'
-    '构建知识体系'
-    '主动式智能体'
-    'skills 安全审查'
-    '智能摘要提炼'
-)
-PRESET_SKILLS_SKIP_LABEL='[跳过] 不安装任何 Skills'
-
-# 交互式多选预设 Skills；通过 nameref 返回 slug 列表（跳过则为空数组）。须至少选一项（含「跳过」）。
-choose_preset_skills_interactive() {
-    local -n out_slugs_ref="$1"
-    out_slugs_ref=()
-    local -a gum_opts=()
-    gum_opts+=("$PRESET_SKILLS_SKIP_LABEL")
-    local i=0
-    for ((i = 0; i < ${#PRESET_SKILL_SLUGS[@]}; i++)); do
-        gum_opts+=("${PRESET_SKILL_SLUGS[i]} | ${PRESET_SKILL_ZH[i]}")
-    done
-
-    while true; do
-        local selection=""
-        local -a lines=()
-        if [[ -n "${GUM:-}" ]] && gum_is_tty; then
-            selection="$("$GUM" choose --no-limit \
-                --header "↑↓ 移动，空格多选，回车确认（须至少选一项；可选「跳过」）" \
-                "${gum_opts[@]}" </dev/tty 2>/dev/tty || true)"
-        else
-            echo "" >/dev/tty
-            echo -e "${INFO}可选 Skills（输入序号，空格分隔；${PRESET_SKILLS_SKIP_LABEL} 填 0）${NC}" >/dev/tty
-            echo -e "  ${MUTED}0) ${PRESET_SKILLS_SKIP_LABEL}${NC}" >/dev/tty
-            for ((i = 0; i < ${#PRESET_SKILL_SLUGS[@]}; i++)); do
-                echo -e "  ${MUTED}$((i + 1)))${NC} ${PRESET_SKILL_SLUGS[i]} | ${PRESET_SKILL_ZH[i]}" >/dev/tty
-            done
-            echo -ne "${WARN}请输入序号后回车：${NC} " >/dev/tty
-            read -r selection </dev/tty || true
-        fi
-
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && lines+=("$line")
-        done <<<"$selection"
-
-        if [[ "${#lines[@]}" -eq 0 ]]; then
-            ui_warn "请至少选择一项（含「跳过」）"
-            continue
-        fi
-
-        local saw_skip=false
-        local row=""
-        for row in "${lines[@]}"; do
-            if [[ "$row" == "$PRESET_SKILLS_SKIP_LABEL" ]]; then
-                saw_skip=true
-                break
-            fi
-        done
-        if [[ "$saw_skip" == "true" ]]; then
-            out_slugs_ref=()
-            return 0
-        fi
-
-        if [[ -n "${GUM:-}" ]] && gum_is_tty; then
-            out_slugs_ref=()
-            for row in "${lines[@]}"; do
-                out_slugs_ref+=("${row%% | *}")
-            done
-            return 0
-        fi
-
-        out_slugs_ref=()
-        local -a nums=()
-        read -ra nums <<<"$selection"
-        if [[ "${#nums[@]}" -eq 0 ]]; then
-            ui_warn "请至少选择一项（含「跳过」）"
-            continue
-        fi
-        local n=""
-        for n in "${nums[@]}"; do
-            if [[ "$n" == "0" ]]; then
-                out_slugs_ref=()
-                return 0
-            fi
-        done
-        local ok=false
-        for n in "${nums[@]}"; do
-            if [[ "$n" =~ ^[0-9]+$ ]] && ((n >= 1 && n <= ${#PRESET_SKILL_SLUGS[@]})); then
-                out_slugs_ref+=("${PRESET_SKILL_SLUGS[$((n - 1))]}")
-                ok=true
-            fi
-        done
-        if [[ "$ok" != "true" ]]; then
-            ui_warn "无效输入；请输入 0 或 1–${#PRESET_SKILL_SLUGS[@]} 的序号"
-            continue
-        fi
-        return 0
-    done
-}
-
-# 预装 Skills
-run_preset_skills_step() {
-    # dry-run 打印
-    if [[ "$DRY_RUN" == "1" ]]; then
-        ui_section "Preset skills (dry-run)"
-        local j=0
-        for ((j = 0; j < ${#PRESET_SKILL_SLUGS[@]}; j++)); do
-            ui_info "  ${PRESET_SKILL_SLUGS[j]} — ${PRESET_SKILL_ZH[j]}"
-        done
-        ui_info "Would prompt to select skills (or skip), then run: openclaw skills install <slug>"
-        return 0
-    fi
-
-    # 校验 openclaw 是否可执行
-    local claw="${OPENCLAW_BIN:-}"
-    if [[ -z "$claw" ]]; then
-        claw="$(resolve_openclaw_bin || true)"
-    fi
-    if [[ -z "$claw" ]]; then
-        ui_warn "openclaw not on PATH; skipped preset skills"
-        return 0
-    fi
-
-    # 非交互环境下无法让用户多选，需自动跳过并给出安装方法提示。
-    if ! is_promptable || [[ "$NO_PROMPT" == "1" ]]; then
-        ui_info "Non-interactive or no TTY: skipped preset skills install."
-        ui_info "Install later with: openclaw skills install <skill-name>"
-        ui_info "Slugs: $(
-            IFS=', '
-            echo "${PRESET_SKILL_SLUGS[*]}"
-        )"
-        return 0
-    fi
-
-    # 交互界面选择 Skills
-    ui_section "Preset skills"
-    local -a pick=()
-    choose_preset_skills_interactive pick || true
-    if [[ "${#pick[@]}" -eq 0 ]]; then
-        ui_info "Skipped preset skills install"
-        return 0
-    fi
-
-    # 遍历选择的 Skills，逐个安装
-    local slug=""
-    for slug in "${pick[@]}"; do
-        ui_info "Installing skill: ${slug}"
-        if ! "$claw" skills install "$slug" </dev/tty; then
-            ui_warn "Failed to install skill: ${slug}"
-        fi
-    done
 }
 
 # 若工作区残留 BOOTSTRAP.md（说明初始化流程未完成） 则继续运行 openclaw onboard 完成后续设置（完成会自动移除 BOOTSTRAP.md）
@@ -3028,7 +2860,6 @@ main() {
     show_install_plan "$detected_checkout"
 
     if [[ "$DRY_RUN" == "1" ]]; then
-        run_preset_skills_step
         ui_success "Dry run complete (no changes made)"
         return 0
     fi
@@ -3264,31 +3095,26 @@ main() {
                     warn_openclaw_not_found
                     return 0
                 fi
-
-                # 起子进程跑 onboard，以便成功后再执行 skills 安装（如果失败后续 skills 也将退出）
+                exec </dev/tty
                 build_onboard_command "$claw"
-                if ! "${ONBOARD_CMD[@]}" </dev/tty; then
-                    local onboard_cmd=""
-                    onboard_cmd="$(format_onboard_display_command "$(basename "$claw")")"
-                    ui_error "Onboarding failed; run ${onboard_cmd} to retry"
-                    ui_info "If gateway startup looks unhealthy, run: openclaw gateway status --deep"
-                    return 0
-                fi
+                exec "${ONBOARD_CMD[@]}"
             fi
 
-            # 在没有 TTY（终端交互环境）时，提示用户需要手动运行 onboarding 和 安装 skills
+            # 在没有 TTY（终端交互环境）时，提示用户需要手动运行 onboarding
             local onboard_cmd=""
             onboard_cmd="$(format_onboard_display_command)"
             ui_info "No TTY; run ${onboard_cmd} to finish setup"
-            run_preset_skills_step
             return 0
         fi
     fi
 
-    # ---- 装后 4：预装 skills ----
-    run_preset_skills_step
+    # ---- 装后 4：启用 hooks ----
+    # run_preset_skills_step
 
-    # ---- 装后 5：gateway daemon 已加载时重启一次，确保新版本生效 ----
+    # ---- 装后 5：预装 skills ----
+    # run_preset_skills_step
+
+    # ---- 装后 6：gateway daemon 已加载时重启一次，确保新版本生效 ----
     if command -v openclaw &>/dev/null; then
         local claw="${OPENCLAW_BIN:-}"
         if [[ -z "$claw" ]]; then
@@ -3308,7 +3134,7 @@ main() {
         fi
     fi
 
-    # ---- 装后 6：升级流程结束后视情况打开 dashboard，并输出 FAQ 链接 ----
+    # ---- 装后 5：升级流程结束后视情况打开 dashboard，并输出 FAQ 链接 ----
     if [[ "$should_open_dashboard" == "true" ]]; then
         maybe_open_dashboard
     fi
@@ -3316,7 +3142,6 @@ main() {
     show_footer_links
 }
 
-# 入口：默认进入 main；OPENCLAW_INSTALL_SH_NO_RUN=1 时仅加载函数定义（用于测试/重用）
 if [[ "${OPENCLAW_INSTALL_SH_NO_RUN:-0}" != "1" ]]; then
     parse_args "$@"
     configure_verbose
