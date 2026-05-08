@@ -36,6 +36,8 @@
 
 #### 4. 预装常用 Skills
 
+以下是常用 Skills，会以交互的形式让用户选择并安装。
+
 ```tex
 'self-improving-agent',		自我迭代智能体
 'data-analyst',				专业数据分析

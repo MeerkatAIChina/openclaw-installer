@@ -1171,26 +1171,128 @@ function Invoke-HooksConfigureStep {
     }
 }
 
+# 命令行弹出交互式多选菜单，让用户选择要安装的 Skills
+# 支持上下移动、空格多选、回车确认。最后返回所有被选中的 Skill（slug），选择“跳过”返回空列表
+function Invoke-SkillsSelectionUi {
+    $items = @(
+        @{ Slug = "self-improving-agent"; Line = "self-improving-agent — 自我迭代智能体" }
+        @{ Slug = "data-analyst"; Line = "data-analyst — 专业数据分析" }
+        @{ Slug = "find-skills"; Line = "find-skills — 智能检索匹配可用技能" }
+        @{ Slug = "humanizer"; Line = "humanizer — 文本拟人化润色" }
+        @{ Slug = "markdown-converter"; Line = "markdown-converter — 各类格式与 Markdown 互转" }
+        @{ Slug = "memory-setup"; Line = "memory-setup — 配置初始化智能记忆库" }
+        @{ Slug = "multi-search-engine"; Line = "multi-search-engine — 多引擎聚合搜索" }
+        @{ Slug = "nano-pdf"; Line = "nano-pdf — 轻量 PDF 处理" }
+        @{ Slug = "ontology"; Line = "ontology — 构建知识体系" }
+        @{ Slug = "proactive-agent"; Line = "proactive-agent — 主动式智能体" }
+        @{ Slug = "skill-vetter"; Line = "skill-vetter — skills 安全审查" }
+        @{ Slug = "summarize"; Line = "summarize — 智能摘要提炼" }
+        @{ Slug = "_skip"; Line = "跳过 — 不安装任何 Skills（与其它选项互斥）" }
+    )
+
+    $count = $items.Count
+    $selected = New-Object bool[] $count
+    $cursor = 0
+    $skipIndex = $count - 1
+
+    while ($true) {
+        Clear-Host
+        Write-Host ""
+        Write-Host "━━━ 选择要安装的 Skills（空格多选，回车确认）━━━" -ForegroundColor Cyan
+        Write-Host ""
+
+        for ($i = 0; $i -lt $count; $i++) {
+            $arrow = if ($i -eq $cursor) { ">" } else { " " }
+            $box = if ($selected[$i]) { "[x]" } else { "[ ]" }
+            Write-Host ("  {0} {1} {2}" -f $arrow, $box, $items[$i].Line)
+        }
+
+        Write-Host ""
+        Write-Host "↑↓ 移动焦点 │ 空格 选中/取消 │ 回车 确认" -ForegroundColor Gray
+
+        $key = [Console]::ReadKey($true)
+
+        switch ($key.Key) {
+            "UpArrow" {
+                $cursor = ($cursor + $count - 1) % $count
+            }
+            "DownArrow" {
+                $cursor = ($cursor + 1) % $count
+            }
+            "Spacebar" {
+                if ($cursor -eq $skipIndex) {
+                    $flip = -not $selected[$skipIndex]
+                    for ($j = 0; $j -lt $count; $j++) {
+                        $selected[$j] = $false
+                    }
+                    $selected[$skipIndex] = $flip
+                }
+                else {
+                    $selected[$skipIndex] = $false
+                    $selected[$cursor] = -not $selected[$cursor]
+                }
+            }
+            "Enter" {
+                $slugs = [System.Collections.Generic.List[string]]::new()
+                if (-not $selected[$skipIndex]) {
+                    for ($j = 0; $j -lt $skipIndex; $j++) {
+                        if ($selected[$j]) {
+                            $slugs.Add($items[$j].Slug)
+                        }
+                    }
+                }
+                return @([string[]]$slugs.ToArray())
+            }
+            Default { }
+        }
+    }
+}
+
 # 从 ClawHub 逐个安装预设 Skills；单个失败只警告不阻断；升级场景不调用。
 function Install-Skills {
-    $skills = @(
-        'self-improving-agent',
-        'data-analyst',
-        'find-skills',
-        'humanizer',
-        'markdown-converter',
-        'memory-setup',
-        'multi-search-engine',
-        'nano-pdf',
-        'ontology',
-        'proactive-agent',
-        'skill-vetter',
-        'summarize'
-    )
+    if (-not (Test-HooksConsoleUiAvailable)) {
+        Write-Host "[*] 未检测到交互式终端（输入或输出已重定向），跳过 Skills 安装。" -ForegroundColor Gray
+        return
+    }
+
+    if (-not (Get-OpenClawCommandPath)) {
+        Write-Host "[!] 未找到 openclaw 命令，跳过 Skills 安装。" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host ""
+    Write-Host "即将选择并安装预设 Skills。" -ForegroundColor Cyan
+
+    $skills = @()
+    $prevVisible = $true
+    try {
+        $prevVisible = [Console]::CursorVisible
+        [Console]::CursorVisible = $false
+    }
+    catch {
+        # 部分宿主不支持
+    }
+    try {
+        $skills = Invoke-SkillsSelectionUi
+    }
+    finally {
+        try {
+            [Console]::CursorVisible = $prevVisible
+        }
+        catch {
+            # ignore
+        }
+    }
+
+    Write-Host ""
+    if ($skills.Count -eq 0) {
+        Write-Host "[OK] 已跳过 Skills 安装。" -ForegroundColor Green
+        return
+    }
 
     $failed = @()
 
-    Write-Host "[*] Installing Skills..." -ForegroundColor Yellow
+    Write-Host "[*] Installing selected Skills..." -ForegroundColor Yellow
     foreach ($slug in $skills) {
         Write-Host "  Installing $slug..." -ForegroundColor Gray
         try {
