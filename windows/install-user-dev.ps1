@@ -990,6 +990,8 @@ function Invoke-OnboardWizard {
     ) + $extraArgs
 
     Invoke-OpenClawCommand @onboardArgs
+
+    # 判断 onboard 命令是否执行成功（$LASTEXITCODE 是内置变量，为 0 表示最近一次执行的原生外部命令成功）。
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
         Write-Host "[!] onboard 失败（退出码 $LASTEXITCODE），将跳过 Hooks 与 Skills 安装。" -ForegroundColor Red
@@ -998,10 +1000,13 @@ function Invoke-OnboardWizard {
     return $true
 }
 
+# 判断环境变量 OPENCLAW_SKIP_HOOKS 是否被设置为 "1"，是-true/否-false，决定是否跳过 Hooks 相关的安装或配置步骤
 function Test-OpenClawSkipHooksEnv {
     return ($env:OPENCLAW_SKIP_HOOKS -eq "1")
 }
 
+# 判断当前 PowerShell 是否有未被重定向的标准输入/输出（即运行在真实终端下而非管道、重定向或脚本中）
+# 用来决定是否可以弹出控制台交互式 UI。返回 $true 表示可用，$false表示不可用
 function Test-HooksConsoleUiAvailable {
     try {
         if ([Console]::IsInputRedirected) {
@@ -1017,7 +1022,8 @@ function Test-HooksConsoleUiAvailable {
     }
 }
 
-# 返回待 enable 的 hook 技术名列表；空列表表示跳过或不选任何 hook。
+# 命令行弹出交互式多选菜单，让用户选择 Hooks
+# 支持上下移动、空格多选、回车确认。最后返回所有被选中的 Hook （slug），选择“跳过”，返回空列表
 function Invoke-HooksSelectionUi {
     $items = @(
         @{ Slug = "session-memory"; Line = "session-memory — /new、/reset 时保存会话摘要到 memory/" }
@@ -1364,9 +1370,9 @@ function Main {
         Write-Host ""
     }
 
-    # Process 5.3: onboard
-    $onboardRan = $false
-    $onboardOk = $false
+    # Process 5.3: onboard 向导
+    $onboardRan = $false # 表示 onboard 向导是否已运行
+    $onboardOk = $false # 表示 onboard 向导是否成功完成
 
     if ($isUpgrade) {
         Write-Host "升级完成，您可以运行 " -NoNewline
@@ -1385,33 +1391,33 @@ function Main {
         $onboardOk = Invoke-OnboardWizard
     }
 
-    if ($onboardRan) {
-        if ($onboardOk) {
+    # Process 5.4: 配置 hooks
+    if ($isUpgrade) {
+        # 升级场景需询问用户后再决定是否配置 hooks
+        Write-Host ""
+        if (Ask-YesNo -Prompt "是否配置 hooks？（注意：可能会覆盖当前配置）" -Default "Y") {
             Invoke-HooksConfigureStep
-
-            # Process 5.4: 预装 Skills
-            if ($isUpgrade) {
-                Write-Host ""
-                if (Ask-YesNo -Prompt "是否安装预设 Skills（注意：可能会覆盖当前配置）？" -Default "Y") {
-                    Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
-                    Install-Skills
-                }
-            }
-            else {
-                Write-Host ""
-                Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
-                Install-Skills
-            }
         }
     }
     else {
-        if ($isUpgrade) {
-            Write-Host ""
-            if (Ask-YesNo -Prompt "是否安装预设 Skills（注意：可能会覆盖当前配置）？" -Default "Y") {
-                Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
-                Install-Skills
-            }
+        # 全新安装场景直接配置 hooks
+        Invoke-HooksConfigureStep
+    }
+
+    # Process 5.5: 预装 Skills
+    if ($isUpgrade) {
+        # 升级场景需询问用户后再决定是否预装 Skills
+        Write-Host ""
+        if (Ask-YesNo -Prompt "是否安装预设 Skills？（注意：可能会覆盖当前配置）" -Default "Y") {
+            Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
+            Install-Skills
         }
+    }
+    else {
+        # 全新安装场景直接预装 Skills
+        Write-Host ""
+        Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
+        Install-Skills
     }
 
     return $true
