@@ -2616,6 +2616,120 @@ resolve_supplied_install_profile() {
     echo "${resolved_profile}"
 }
 
+# 收集到的模型/认证参数（由 prompt_onboard_model_args 写入，build_onboard_command 追加到 onboard 末尾）
+ONBOARD_MODEL_ARGS=()
+
+# auth-choice -> 对应的 --xxx-api-key 参数名
+_onboard_choice_to_api_key_param() {
+    case "$1" in
+    custom-api-key) echo "--custom-api-key" ;;
+    moonshot-api-key | moonshot-api-key-cn) echo "--moonshot-api-key" ;;
+    kimi-code-api-key) echo "--kimi-code-api-key" ;;
+    zai-api-key | zai-coding-global | zai-coding-cn | zai-global | zai-cn) echo "--zai-api-key" ;;
+    minimax-global-api | minimax-global-oauth | minimax-cn-oauth | minimax-cn-api) echo "--minimax-api-key" ;;
+    openai-codex | openai-api-key) echo "--openai-api-key" ;;
+    *) return 1 ;;
+    esac
+}
+
+# 交互式收集模型认证参数到 ONBOARD_MODEL_ARGS
+prompt_onboard_model_args() {
+    ONBOARD_MODEL_ARGS=()
+    if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+        return 1
+    fi
+
+    local -a group_names=(
+        "自定义"
+        "MoonShot"
+        "Kimi Coding"
+        "智谱 (ZAI)"
+        "MiniMax"
+        "OpenAI"
+    )
+    local -a group_choices=(
+        "custom-api-key"
+        "moonshot-api-key|moonshot-api-key-cn"
+        "kimi-code-api-key"
+        "zai-api-key|zai-coding-global|zai-coding-cn|zai-global|zai-cn"
+        "minimax-global-api|minimax-global-oauth|minimax-cn-oauth|minimax-cn-api"
+        "openai-codex|openai-api-key"
+    )
+
+    local -a all_choices=()
+    {
+        printf '\n━━━ 选择模型认证方式 ━━━\n'
+        local idx=1
+        local i
+        for ((i = 0; i < ${#group_names[@]}; i++)); do
+            printf '\n  [%s]\n' "${group_names[$i]}"
+            local IFS='|'
+            local -a items=(${group_choices[$i]})
+            unset IFS
+            local c
+            for c in "${items[@]}"; do
+                printf '  %2d. %s\n' "$idx" "$c"
+                all_choices+=("$c")
+                idx=$((idx + 1))
+            done
+        done
+        printf '\n'
+    } >/dev/tty
+
+    local total=${#all_choices[@]}
+    local selected=""
+    while [[ -z "$selected" ]]; do
+        printf '请输入编号 (1-%d): ' "$total" >/dev/tty
+        local raw=""
+        IFS= read -r raw </dev/tty || return 1
+        if [[ "$raw" =~ ^[0-9]+$ ]] && ((raw >= 1 && raw <= total)); then
+            selected="${all_choices[$((raw - 1))]}"
+        else
+            printf '[!] 请输入 1 到 %d 之间的数字。\n' "$total" >/dev/tty
+        fi
+    done
+    printf '[OK] 已选择：%s\n' "$selected" >/dev/tty
+
+    local api_key_param=""
+    api_key_param="$(_onboard_choice_to_api_key_param "$selected")" || {
+        ui_error "Unknown auth choice: $selected"
+        return 1
+    }
+
+    local api_key=""
+    while [[ -z "$api_key" ]]; do
+        printf '请输入 API Key (%s): ' "$api_key_param" >/dev/tty
+        IFS= read -r api_key </dev/tty || return 1
+        if [[ -z "$api_key" ]]; then
+            printf '[!] API Key 不能为空。\n' >/dev/tty
+        fi
+    done
+
+    ONBOARD_MODEL_ARGS+=("--auth-choice" "$selected" "$api_key_param" "$api_key")
+
+    if [[ "$selected" == "custom-api-key" ]]; then
+        local base_url=""
+        while [[ -z "$base_url" ]]; do
+            printf '请输入 Custom Base URL (--custom-base-url): ' >/dev/tty
+            IFS= read -r base_url </dev/tty || return 1
+            if [[ -z "$base_url" ]]; then
+                printf '[!] Base URL 不能为空。\n' >/dev/tty
+            fi
+        done
+        local model_id=""
+        while [[ -z "$model_id" ]]; do
+            printf '请输入 Custom Model ID (--custom-model-id): ' >/dev/tty
+            IFS= read -r model_id </dev/tty || return 1
+            if [[ -z "$model_id" ]]; then
+                printf '[!] Model ID 不能为空。\n' >/dev/tty
+            fi
+        done
+        ONBOARD_MODEL_ARGS+=("--custom-base-url" "$base_url" "--custom-model-id" "$model_id")
+    fi
+
+    return 0
+}
+
 # 追加 quickstart onboard 参数到指定命令数组
 # 目的是简化 onboard 流程，只保留最必要的步骤（主要是模型和网关）
 append_quickstart_onboard_flags() {
@@ -2652,7 +2766,14 @@ build_onboard_command() {
     if [[ -n "${INSTALL_GATEWAY_PORT}" ]]; then
         ONBOARD_CMD+=("--gateway-port" "${INSTALL_GATEWAY_PORT}")
     fi
+
+    # 追加非交互参数
     append_quickstart_onboard_flags ONBOARD_CMD
+
+    # 追加模型认证参数
+    if ((${#ONBOARD_MODEL_ARGS[@]} > 0)); then
+        ONBOARD_CMD+=("${ONBOARD_MODEL_ARGS[@]}")
+    fi
 }
 
 # 构造可显示给用户的 onboard 命令数组（使用 openclaw 而非绝对路径）
@@ -2719,8 +2840,14 @@ run_bootstrap_onboarding_if_needed() {
         return
     fi
 
-    # 构建并执行 onboard 命令
+    # 先收集模型参数
+    prompt_onboard_model_args || {
+        ui_error "Failed to collect model credentials"
+        return
+    }
+    # 再构建 onboard 命令
     build_onboard_command "$claw"
+    # 再执行 onboard 命令
     "${ONBOARD_CMD[@]}" || {
         local onboard_cmd=""
         onboard_cmd="$(format_onboard_display_command "$(basename "$claw")")"
@@ -3096,7 +3223,14 @@ main() {
                     return 0
                 fi
                 exec </dev/tty
+                #收集模型参数
+                prompt_onboard_model_args || {
+                    ui_error "Failed to collect model credentials; aborting onboarding"
+                    return 1
+                }
+                # 再构建 onboard 命令
                 build_onboard_command "$claw"
+                # 再执行 onboard 命令
                 exec "${ONBOARD_CMD[@]}"
             fi
 
