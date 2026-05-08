@@ -6,10 +6,16 @@
     "files.eol": "\n"
   },
   "[powershell]": {
-    "files.eol": "\r\n"
+    "files.eol": "\r\n",
+    "files.trimTrailingWhitespace": true,
+    "editor.defaultFormatter": "ms-vscode.powershell",
+    "editor.formatOnSave": true
   },
   "bashIde.shellcheckPath": "",
   "shellcheck.enable": true,
   "shellcheck.run": "onSave",
-  "shfmt.executableArgs": ["-i", "4"]
+  "shfmt.executableArgs": [
+    "-i",
+    "4"
+  ]
 }

@@ -2,6 +2,7 @@
   "recommendations": [
     "mads-hartmann.bash-ide-vscode",
     "timonwong.shellcheck",
-    "mkhl.shfmt"
+    "mkhl.shfmt",
+    "ms-vscode.powershell"
   ]
 }
