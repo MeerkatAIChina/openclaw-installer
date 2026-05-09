@@ -3320,16 +3320,23 @@ main() {
                     warn_openclaw_not_found
                     return 0
                 fi
-                exec </dev/tty
+
                 #收集模型参数
                 prompt_onboard_model_args || {
                     ui_error "Failed to collect model credentials; aborting onboarding"
                     return 1
                 }
+
                 # 再构建 onboard 命令
                 build_onboard_command "$claw"
-                # 再执行 onboard 命令
-                exec "${ONBOARD_CMD[@]}"
+
+                # 再执行 onboard 命令（使用调用替换 exec，防止后续步骤能正常运行）
+                if ! "${ONBOARD_CMD[@]}" </dev/tty; then
+                    local onboard_cmd=""
+                    onboard_cmd="$(format_onboard_display_command "$(basename "$claw")")"
+                    ui_error "Onboarding failed; run ${onboard_cmd} to retry"
+                    ui_info "If gateway startup looks unhealthy, run: openclaw gateway status --deep"
+                fi
             fi
 
             # 在没有 TTY（终端交互环境）时，提示用户需要手动运行 onboarding

@@ -4,7 +4,23 @@
 
 ---
 
-## 二、扩展阅读
+## 一、我们的脚本说明
+
+### 本地开发
+
+```bash
+# 进入目录（换成自己的）
+cd /mnt/e/projects/openclaw-installer/linux
+
+# 本地执行
+bash ./install-user-dev.sh </dev/null
+```
+
+**请注意：** 实测在 `WSL2` 中执行脚本**必须添加** `</dev/null`。因为使用终端（TTY）会调用 `gum`，而 `gum` 会用 `gum spin` 包一层 `npm`，在 `WSL2` 中会出现 `inappropriate ioct1 for device` 的错误，引起误判，导致环境被破坏。
+
+## 二、常见问题
+
+## 三、扩展阅读
 
 ### OpenClaw 官方安装脚本解析
 
