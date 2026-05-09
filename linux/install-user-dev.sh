@@ -15,7 +15,7 @@ set -euo pipefail
 #                 git: 清理 npm 全局、git clone/pull、ensure_pnpm、ui:build/build、写入 ~/.local/bin/openclaw wrapper
 # 6 收尾       — Stage[3/3]：resolve_openclaw_bin、warn_duplicate_openclaw_global_installs、PATH 缺失警告、refresh_gateway_service_if_loaded
 # 7 装后流程   — 升级/git: run_doctor + plugins update --all；全新: run_bootstrap_onboarding_if_needed / openclaw onboard 接管 TTY
-# 8 结束       — gateway daemon 检测重启、可选 dashboard 打开、show_footer_links
+# 8 结束       — preset hooks(enable_hooks)、gateway daemon 检测重启、dashboard、带 token URL 浏览器、show_footer_links
 
 BOLD='\033[1m'
 ACCENT='\033[38;2;255;77;77m' # coral-bright  #ff4d4d
@@ -2614,6 +2614,45 @@ maybe_open_control_ui_url_from_gateway_config() {
     printf '%s\n' "$dash_url"
 }
 
+# 装后：启用预设 hooks（逐个 openclaw hooks enable；单次失败仅警告）。
+enable_hooks() {
+    local -a hook_names=(
+        session-memory
+        compaction-notifier
+        boot-md
+        command-logger
+    )
+
+    if [[ "${DRY_RUN:-}" == "1" ]]; then
+        ui_section "Hooks (dry-run)"
+        local h=""
+        for h in "${hook_names[@]}"; do
+            ui_info "Would run: openclaw hooks enable ${h}"
+        done
+        return 0
+    fi
+
+    local claw="${OPENCLAW_BIN:-}"
+    if [[ -z "$claw" ]]; then
+        claw="$(resolve_openclaw_bin || true)"
+    fi
+    if [[ -z "$claw" ]]; then
+        ui_warn "openclaw not on PATH; skipping preset hooks"
+        return 0
+    fi
+
+    ui_section "Enabling preset hooks"
+
+    local h=""
+    for h in "${hook_names[@]}"; do
+        if "$claw" hooks enable "$h"; then
+            ui_info "Hook enabled: ${h}"
+        else
+            ui_warn "Failed to enable hook: ${h}"
+        fi
+    done
+}
+
 # 解析 onboarding 工作区路径（默认 ~/.openclaw/workspace 或 profile 后缀）
 resolve_workspace_dir() {
     if [[ -n "${INSTALL_WORKSPACE}" ]]; then
@@ -3276,18 +3315,18 @@ main() {
                 doctor_args+=("--non-interactive")
             fi
             ui_info "Running openclaw doctor"
-            # local doctor_ok=0
-            # if ((${#doctor_args[@]})); then
-            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
-            # else
-            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
-            # fi
-            # if ((doctor_ok)); then
-            #     ui_info "Updating plugins"
-            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
-            # else
-            #     ui_warn "Doctor failed; skipping plugin updates"
-            # fi
+            local doctor_ok=0
+            if ((${#doctor_args[@]})); then
+                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
+            else
+                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
+            fi
+            if ((doctor_ok)); then
+                ui_info "Updating plugins"
+                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
+            else
+                ui_warn "Doctor failed; skipping plugin updates"
+            fi
         else
             ui_info "No TTY; run openclaw doctor and openclaw plugins update --all manually"
         fi
@@ -3348,12 +3387,12 @@ main() {
     fi
 
     # ---- 装后 4：启用 hooks ----
-    # run_preset_skills_step
+    enable_hooks
 
     # ---- 装后 5：预装 skills ----
     # run_preset_skills_step
 
-    # ---- 装后 5：gateway daemon 已加载时重启一次，确保新版本生效 ----
+    # ---- 装后 6：gateway daemon 已加载时重启一次，确保新版本生效 ----
     if command -v openclaw &>/dev/null; then
         local claw="${OPENCLAW_BIN:-}"
         if [[ -z "$claw" ]]; then
@@ -3373,15 +3412,15 @@ main() {
         fi
     fi
 
-    # ---- 装后 6：升级流程结束后视情况打开 dashboard，并输出 FAQ 链接 ----
+    # ---- 装后 7：升级流程结束后视情况打开 dashboard ----
     if [[ "$should_open_dashboard" == "true" ]]; then
         maybe_open_dashboard
     fi
 
-    # ---- 装后 7：尝试用系统浏览器打开 URL ----
+    # ---- 装后 8：尝试用系统浏览器打开 URL ----
     maybe_open_control_ui_url_from_gateway_config
 
-    # ---- 装后 8：输出 FAQ 链接 ----
+    # ---- 装后 9：输出 FAQ 链接 ----
     show_footer_links
 }
 
