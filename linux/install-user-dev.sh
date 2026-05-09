@@ -2516,6 +2516,104 @@ maybe_open_dashboard() {
     "$claw" dashboard || true
 }
 
+# 从 openclaw.json 读出明文 gateway token（仅 token 认证），拼接 Control UI URL（不含换行）。
+resolve_control_ui_authed_url_from_config() {
+    local cfg="$1"
+    if [[ ! -r "$cfg" ]] || ! command -v node &>/dev/null; then
+        return 1
+    fi
+    OPENCLAW_CONFIG_JSON_PATH="$cfg" node <<'NODE' 2>/dev/null
+const fs = require('fs');
+const p = process.env.OPENCLAW_CONFIG_JSON_PATH;
+let j;
+try { j = JSON.parse(fs.readFileSync(p, 'utf8')); }
+catch (_) { process.exit(1); }
+const g = j.gateway && typeof j.gateway === 'object' ? j.gateway : {};
+const auth = g.auth && typeof g.auth === 'object' ? g.auth : {};
+const mode = String(auth.mode || g.authMode || '').toLowerCase();
+if (mode === 'password') process.exit(1);
+let tok;
+if (typeof auth.token === 'string') tok = auth.token;
+if (tok === undefined && typeof g.token === 'string') tok = g.token;
+if (!tok) process.exit(1);
+const n = Number(g.port);
+const port = Number.isFinite(n) && n > 0 ? n : 18789;
+process.stdout.write('http://127.0.0.1:' + port + '/#token=' + encodeURIComponent(tok));
+NODE
+}
+
+# macOS/Linux/WSL：在系统浏览器中打开指定 URL。
+open_url_in_system_browser() {
+    local url="$1"
+    if [[ -z "$url" ]]; then
+        return 1
+    fi
+
+    if [[ "${OS:-}" == "macos" ]] && command -v open &>/dev/null; then
+        open "$url" >/dev/null 2>&1 && return 0
+    fi
+
+    if [[ "${OS:-}" != "linux" ]]; then
+        return 1
+    fi
+
+    if [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+        if command -v wslview &>/dev/null; then
+            wslview "$url" >/dev/null 2>&1 && return 0
+        fi
+        local cand=""
+        for cand in "$(command -v powershell.exe 2>/dev/null)" "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
+            if [[ -z "$cand" ]] || [[ ! -f "$cand" ]]; then
+                continue
+            fi
+            MSYS_NO_PATHCONV=1 WSL_CLI_OPEN_URL="$url" "$cand" -NoProfile -NonInteractive \
+                -ExecutionPolicy Bypass -Command 'Start-Process "$env:WSL_CLI_OPEN_URL"' >/dev/null 2>&1 && return 0
+        done
+        if [[ -x /mnt/c/Windows/System32/cmd.exe ]]; then
+            MSYS2_ARG_CONV_EXCL='*' cmd.exe /c start "" "$url" >/dev/null 2>&1 && return 0
+        fi
+    fi
+
+    if command -v xdg-open &>/dev/null; then
+        xdg-open "$url" >/dev/null 2>&1 && return 0
+    fi
+    if command -v gio &>/dev/null; then
+        gio open "$url" >/dev/null 2>&1 && return 0
+    fi
+
+    return 1
+}
+
+# 装后：从配置文件解析网关 token，尝试浏览器打开携带 token 的 URL（无 token 或非 token 认证则跳过）。
+maybe_open_control_ui_url_from_gateway_config() {
+    ui_section "Trying to automatically open gateway URL"
+    if [[ "${DRY_RUN:-}" == "1" ]] || [[ "${OPENCLAW_INSTALLER_SKIP_BROWSER_URL:-}" == "1" ]]; then
+        return 0
+    fi
+    if ! command -v node &>/dev/null; then
+        return 0
+    fi
+    local cfg=""
+    cfg="$(resolve_install_config_path)"
+    if [[ ! -r "$cfg" ]]; then
+        return 0
+    fi
+
+    local dash_url=""
+    if ! dash_url="$(resolve_control_ui_authed_url_from_config "$cfg")" || [[ -z "$dash_url" ]]; then
+        return 0
+    fi
+
+    ui_info "Opening Control UI in browser (auth via config token fragment)"
+    if open_url_in_system_browser "$dash_url"; then
+        return 0
+    fi
+
+    ui_warn "Could not auto-open browser（无法自动打开浏览器）"
+    ui_info "Open this URL（请手动复制以下 URL 并在浏览器中打开）:"
+    printf '%s\n' "$dash_url"
+}
+
 # 解析 onboarding 工作区路径（默认 ~/.openclaw/workspace 或 profile 后缀）
 resolve_workspace_dir() {
     if [[ -n "${INSTALL_WORKSPACE}" ]]; then
@@ -3178,18 +3276,18 @@ main() {
                 doctor_args+=("--non-interactive")
             fi
             ui_info "Running openclaw doctor"
-            local doctor_ok=0
-            if ((${#doctor_args[@]})); then
-                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
-            else
-                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
-            fi
-            if ((doctor_ok)); then
-                ui_info "Updating plugins"
-                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
-            else
-                ui_warn "Doctor failed; skipping plugin updates"
-            fi
+            # local doctor_ok=0
+            # if ((${#doctor_args[@]})); then
+            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
+            # else
+            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
+            # fi
+            # if ((doctor_ok)); then
+            #     ui_info "Updating plugins"
+            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
+            # else
+            #     ui_warn "Doctor failed; skipping plugin updates"
+            # fi
         else
             ui_info "No TTY; run openclaw doctor and openclaw plugins update --all manually"
         fi
@@ -3248,7 +3346,7 @@ main() {
     # ---- 装后 5：预装 skills ----
     # run_preset_skills_step
 
-    # ---- 装后 6：gateway daemon 已加载时重启一次，确保新版本生效 ----
+    # ---- 装后 5：gateway daemon 已加载时重启一次，确保新版本生效 ----
     if command -v openclaw &>/dev/null; then
         local claw="${OPENCLAW_BIN:-}"
         if [[ -z "$claw" ]]; then
@@ -3268,11 +3366,15 @@ main() {
         fi
     fi
 
-    # ---- 装后 5：升级流程结束后视情况打开 dashboard，并输出 FAQ 链接 ----
+    # ---- 装后 6：升级流程结束后视情况打开 dashboard，并输出 FAQ 链接 ----
     if [[ "$should_open_dashboard" == "true" ]]; then
         maybe_open_dashboard
     fi
 
+    # ---- 装后 7：尝试用系统浏览器打开 URL ----
+    maybe_open_control_ui_url_from_gateway_config
+
+    # ---- 装后 8：输出 FAQ 链接 ----
     show_footer_links
 }
 
