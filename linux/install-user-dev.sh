@@ -15,7 +15,7 @@ set -euo pipefail
 #                 git: 清理 npm 全局、git clone/pull、ensure_pnpm、ui:build/build、写入 ~/.local/bin/openclaw wrapper
 # 6 收尾       — Stage[3/3]：resolve_openclaw_bin、warn_duplicate_openclaw_global_installs、PATH 缺失警告、refresh_gateway_service_if_loaded
 # 7 装后流程   — 升级/git: run_doctor + plugins update --all；全新: run_bootstrap_onboarding_if_needed / openclaw onboard 接管 TTY
-# 8 结束       — preset hooks(enable_hooks)、gateway daemon 检测重启、dashboard、带 token URL 浏览器、show_footer_links
+# 8 结束       — preset hooks(enable_hooks)、preset skills(install_preset_skills)、gateway daemon 检测重启、dashboard、带 token URL 浏览器、show_footer_links
 
 BOLD='\033[1m'
 ACCENT='\033[38;2;255;77;77m' # coral-bright  #ff4d4d
@@ -2653,6 +2653,64 @@ enable_hooks() {
     done
 }
 
+# 装后：预装常用 skills（逐个 openclaw skills install；单次失败仅警告）。
+install_preset_skills() {
+    local -a skill_slugs=(
+        self-improving-agent
+        data-analyst
+        find-skills
+        humanizer
+        markdown-converter
+        memory-setup
+        multi-search-engine
+        nano-pdf
+        ontology
+        proactive-agent
+        skill-vetter
+        summarize
+    )
+
+    if [[ "${DRY_RUN:-}" == "1" ]]; then
+        ui_section "Preset skills (dry-run)"
+        local s=""
+        for s in "${skill_slugs[@]}"; do
+            ui_info "Would run: openclaw skills install ${s}"
+        done
+        return 0
+    fi
+
+    local claw="${OPENCLAW_BIN:-}"
+    if [[ -z "$claw" ]]; then
+        claw="$(resolve_openclaw_bin || true)"
+    fi
+    if [[ -z "$claw" ]]; then
+        ui_warn "openclaw not on PATH; skipping preset skills"
+        return 0
+    fi
+
+    ui_section "Installing preset skills"
+
+    local ok=0
+    local fail=0
+    local -a failed_slugs=()
+    local s=""
+    for s in "${skill_slugs[@]}"; do
+        if "$claw" skills install "$s"; then
+            ok=$((ok + 1))
+            ui_info "Skill installed: ${s}"
+        else
+            fail=$((fail + 1))
+            failed_slugs+=("$s")
+            ui_warn "Failed to install skill: ${s}"
+        fi
+    done
+    if ((fail == 0)); then
+        ui_success "Preset skills: ${ok}/${#skill_slugs[@]} installed"
+    else
+        ui_warn "Preset skills: ${ok} ok, ${fail} failed — ${failed_slugs[*]}"
+    fi
+}
+
 # 解析 onboarding 工作区路径（默认 ~/.openclaw/workspace 或 profile 后缀）
 resolve_workspace_dir() {
     if [[ -n "${INSTALL_WORKSPACE}" ]]; then
@@ -3315,18 +3373,18 @@ main() {
                 doctor_args+=("--non-interactive")
             fi
             ui_info "Running openclaw doctor"
-            local doctor_ok=0
-            if ((${#doctor_args[@]})); then
-                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
-            else
-                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
-            fi
-            if ((doctor_ok)); then
-                ui_info "Updating plugins"
-                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
-            else
-                ui_warn "Doctor failed; skipping plugin updates"
-            fi
+            # local doctor_ok=0
+            # if ((${#doctor_args[@]})); then
+            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
+            # else
+            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
+            # fi
+            # if ((doctor_ok)); then
+            #     ui_info "Updating plugins"
+            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
+            # else
+            #     ui_warn "Doctor failed; skipping plugin updates"
+            # fi
         else
             ui_info "No TTY; run openclaw doctor and openclaw plugins update --all manually"
         fi
@@ -3390,7 +3448,7 @@ main() {
     enable_hooks
 
     # ---- 装后 5：预装 skills ----
-    # run_preset_skills_step
+    install_preset_skills
 
     # ---- 装后 6：gateway daemon 已加载时重启一次，确保新版本生效 ----
     if command -v openclaw &>/dev/null; then
