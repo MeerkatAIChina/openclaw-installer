@@ -1249,6 +1249,65 @@ prompt_choice() {
     echo "$answer"
 }
 
+# 工具函数：Yes/No 询问。默认为 Y 或 N（空输入采用默认）。返回 0=Yes，1=No。无法交互时按默认值判定。
+ask_yes_no() {
+    local prompt_text="$1"
+    local default="${2:-Y}"
+    local def_u=""
+    def_u="$(printf '%s' "${default}" | tr '[:lower:]' '[:upper:]')"
+    [[ "$def_u" != "Y" && "$def_u" != "N" ]] && def_u="Y"
+
+    if [[ "${NO_PROMPT:-0}" == "1" ]] || ! is_promptable; then
+        if [[ "$def_u" == "Y" ]]; then
+            return 0
+        fi
+        return 1
+    fi
+
+    local hint=""
+    if [[ "$def_u" == "Y" ]]; then
+        hint="(Y/n)"
+    else
+        hint="(y/N)"
+    fi
+    local line=""
+    line="${prompt_text} ${hint}"
+
+    if [[ -n "${GUM:-}" ]] && gum_is_tty; then
+        if [[ "$def_u" == "Y" ]]; then
+            if "$GUM" confirm "$line" --default=true </dev/tty >/dev/tty 2>&1; then
+                return 0
+            fi
+            return 1
+        fi
+        if "$GUM" confirm "$line" --default=false </dev/tty >/dev/tty 2>&1; then
+            return 0
+        fi
+        return 1
+    fi
+
+    local ans=""
+    ans="$(prompt_choice "$line")" || true
+    if [[ -z "${ans// /}" ]]; then
+        if [[ "$def_u" == "Y" ]]; then
+            return 0
+        fi
+        return 1
+    fi
+
+    case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+    y | yes)
+        return 0
+        ;;
+    n | no)
+        return 1
+        ;;
+    esac
+
+    printf '%s' "$ans" | grep -qiE '^y' && return 0
+    return 1
+}
+
 # 探测到本地 checkout 时交互式让用户在 git 与 npm 之间二选一
 choose_install_method_interactive() {
     local detected_checkout="$1"
@@ -2616,6 +2675,14 @@ maybe_open_control_ui_url_from_gateway_config() {
 
 # 装后：启用预设 hooks（逐个 openclaw hooks enable；单次失败仅警告）。
 enable_hooks() {
+    local upgrade_install="${1:-false}"
+
+    if [[ "${upgrade_install}" == "true" ]]; then
+        if ! ask_yes_no "Enable bundled Hooks? (Warning: this may overwrite your current configuration)" "N"; then
+            return 0
+        fi
+    fi
+
     local -a hook_names=(
         session-memory
         compaction-notifier
@@ -2655,6 +2722,14 @@ enable_hooks() {
 
 # 装后：预装常用 skills（逐个 openclaw skills install；单次失败仅警告）。
 install_preset_skills() {
+    local upgrade_install="${1:-false}"
+
+    if [[ "${upgrade_install}" == "true" ]]; then
+        if ! ask_yes_no "Install bundled Skills? (Warning: this may overwrite your current configuration)" "N"; then
+            return 0
+        fi
+    fi
+
     local -a skill_slugs=(
         self-improving-agent
         data-analyst
@@ -3373,18 +3448,18 @@ main() {
                 doctor_args+=("--non-interactive")
             fi
             ui_info "Running openclaw doctor"
-            # local doctor_ok=0
-            # if ((${#doctor_args[@]})); then
-            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
-            # else
-            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
-            # fi
-            # if ((doctor_ok)); then
-            #     ui_info "Updating plugins"
-            #     OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
-            # else
-            #     ui_warn "Doctor failed; skipping plugin updates"
-            # fi
+            local doctor_ok=0
+            if ((${#doctor_args[@]})); then
+                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor "${doctor_args[@]}" </dev/null && doctor_ok=1
+            else
+                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" doctor </dev/tty && doctor_ok=1
+            fi
+            if ((doctor_ok)); then
+                ui_info "Updating plugins"
+                OPENCLAW_UPDATE_IN_PROGRESS=1 "$claw" plugins update --all || true
+            else
+                ui_warn "Doctor failed; skipping plugin updates"
+            fi
         else
             ui_info "No TTY; run openclaw doctor and openclaw plugins update --all manually"
         fi
@@ -3445,10 +3520,10 @@ main() {
     fi
 
     # ---- 装后 4：启用 hooks ----
-    enable_hooks
+    enable_hooks "${is_upgrade}"
 
     # ---- 装后 5：预装 skills ----
-    install_preset_skills
+    install_preset_skills "${is_upgrade}"
 
     # ---- 装后 6：gateway daemon 已加载时重启一次，确保新版本生效 ----
     if command -v openclaw &>/dev/null; then
