@@ -33,7 +33,7 @@
 
 ```powershell
 # 使用交互安装脚本
-iex ((irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install-user.ps1').TrimStart([char]0xFEFF))
+iwr -useb 'https://github.com/Zhangyao719/openclaw-installer/releases/download/v0.1.1/install-user.ps1' -OutFile $env:TEMP\oc.ps1; powershell.exe -nop -ep bypass -f $env:TEMP\oc.ps1
 
 # 使用非交互脚本（适合服务器直接跑）
 & ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install-user.ps1').TrimStart([char]0xFEFF))) -AuthChoice moonshot-api-key-cn -Provider moonshot-api-key -ApiKey sh-xxx123

@@ -1,12 +1,24 @@
 # Linux / macOS 安装脚本说明
 
->
-
----
-
 ## 一、我们的脚本说明
 
-### 本地开发
+### 普通用户
+
+```bash
+# github 链接,注意 tag 版本
+curl -fsSL https://github.com/Zhangyao719/openclaw-installer/releases/download/<tag>/install-user.sh | bash
+```
+
+你也可以手动把脚本下载下来，然后在本机终端上执行：
+
+```bash
+# 进入脚本所在的下载目录中
+bash ./install-user.sh </dev/null
+```
+
+### 开发者
+
+#### 本地开发
 
 ```bash
 # 进入目录（换成自己的）
@@ -18,7 +30,116 @@ bash ./install-user-dev.sh </dev/null
 
 **请注意：** 实测在 `WSL2` 中执行脚本**必须添加** `</dev/null`。因为使用终端（TTY）会调用 `gum`，而 `gum` 会用 `gum spin` 包一层 `npm`，在 `WSL2` 中会出现 `inappropriate ioct1 for device` 的错误，引起误判，导致环境被破坏。
 
+#### 本地打包
+
+```bash
+# 根目录下执行
+node scripts/build-release.cjs
+```
+
+会扫描 `linux/install-*-dev.sh`、`windows/install-*-dev.ps1`，生成到 `dist/`（`install-<name>.sh` / `.ps1`）。
+
+依赖简述
+
+- Node：跑上述命令（无需额外 `npm install`，脚本只用标准库）。
+- `shfmt`：可选，但建议装（与 release 工作流一致）。
+
+#### 卸载 OpenClaw
+
+```bash
+# 1. 先用现有 openclaw 把服务停干净（失败也无所谓，往下走）
+openclaw daemon stop 2>/dev/null
+openclaw daemon uninstall 2>/dev/null
+openclaw gateway stop 2>/dev/null
+
+# 2. 兜底：systemd 用户服务残留
+systemctl --user stop 'openclaw*' 2>/dev/null
+systemctl --user disable 'openclaw*' 2>/dev/null
+rm -f ~/.config/systemd/user/openclaw*.service ~/.config/systemd/user/clawdbot*.service 2>/dev/null
+systemctl --user daemon-reload 2>/dev/null
+
+# 3. 杀掉残留进程
+pkill -f 'openclaw|clawdbot' 2>/dev/null
+
+# 4. 再卸 npm 包和文件
+hash -r
+npm uninstall -g openclaw 2>/dev/null
+rm -f ~/.local/bin/openclaw
+rm -rf ~/.local/lib/node_modules/openclaw ~/.local/lib/node_modules/.openclaw-*
+
+# 5. 删配置 / 状态目录
+rm -rf ~/.openclaw ~/.clawdbot ~/.moltbot ~/.moldbot
+
+# 6. 验证
+type -P openclaw || echo "binary: clean"
+ls -la ~/.local/bin/openclaw 2>&1 | grep -q "No such file" && echo "bin link: clean"
+ls ~/.openclaw 2>&1 | grep -q "No such file" && echo "config: clean"
+systemctl --user list-units --all 'openclaw*' 2>/dev/null | grep -i openclaw || echo "systemd: clean"
+pgrep -fa 'openclaw|clawdbot' || echo "process: clean"
+```
+
 ## 二、常见问题
+
+### WSL 中的问题归纳
+
+1. npm 在解析/写入缓存时路径错，导致安装失败（以 `WSL` 为例）。
+
+   ```powershell
+   [2/3] Installing OpenClaw
+   · Using npm registry: https://registry.npmmirror.com/
+   ✓ Git already installed
+   · Installing OpenClaw (latest)
+   ! npm install failed for openclaw@latest
+     Command: env SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm --loglevel error --silent --no-fund --no-audit install -g openclaw@latest
+     Installer log: /tmp/tmp.vhlwCzF3RX
+   ! npm install failed; showing last log lines
+   ! npm install failed; retrying
+   ! npm install failed for openclaw@latest
+     Command: env SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm --loglevel error --silent --no-fund --no-audit install -g openclaw@latest
+     Installer log: /tmp/tmp.PiR3b2ML5S
+   ! npm install failed; showing last log lines
+   ```
+
+   这可能是 `npm` 的缓存目录指向了 `windows` 系统的 `C盘`或别的目录。可按以下步骤处理：
+
+   ```powershell
+   # step1. 输入一下命令，看当前缓存指向哪里
+   npm config get cache
+   npm config list -l | grep -E 'cache|prefix|tmp'
+   
+   # 以下是输出示例：
+   zamir@LAPTOP-O7J4QF8P:~$ npm config get cache
+   npm config list -l | grep -E 'cache|prefix|tmp'
+   /c/Users/admin/.npm-user-cache
+   ; cache = "/home/zamir/.npm" ; overridden by env
+   cache-max = null
+   cache-min = 0
+   diff-dst-prefix = "b/"
+   diff-no-prefix = false
+   diff-src-prefix = "a/"
+   ; prefix = "/usr" ; overridden by user
+   save-prefix = "^"
+   tag-version-prefix = "v"
+   ; cache = "/home/zamir/.npm" ; overridden by env
+   prefix = "/home/zamir/.npm-global"
+   cache = "/c/Users/admin/.npm-user-cache"
+   ```
+
+   在输出示例中能看到 `/c/Users/admin/.npm-user-cache`，说明缓存确实指向了 `windows` 系统的 `C盘`。
+
+   主要看 WSL 中的两个文件：
+
+   ```bash
+   # ~/.bashrc
+   export npm_config_cache="$HOME/.npm" # 不要指向 c 盘
+   [[ -d "$HOME/.npm" ]] || mkdir -p "$HOME/.npm"
+   ```
+
+   ```bash
+   # ~/.npmrc
+   cache=/home/zamir/.npm # cache 路径和 .bashrc 中的一致
+   registry=https://registry.npmmirror.com/
+   ```
 
 ## 三、扩展阅读
 
