@@ -2935,7 +2935,7 @@ prompt_onboard_model_args() {
             printf '\n  [%s]\n' "${group_names[$i]}"
             local IFS='|'
             local -a items
-            read -r -a items <<< "${group_choices[$i]}"
+            read -r -a items <<<"${group_choices[$i]}"
             unset IFS
             local c
             for c in "${items[@]}"; do
