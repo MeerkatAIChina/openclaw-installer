@@ -3510,13 +3510,12 @@ main() {
                     ui_error "Onboarding failed; run ${onboard_cmd} to retry"
                     ui_info "If gateway startup looks unhealthy, run: openclaw gateway status --deep"
                 fi
+            else
+                local onboard_cmd=""
+                onboard_cmd="$(format_onboard_display_command)"
+                ui_info "No TTY; run ${onboard_cmd} to finish setup"
+                # return 0 # 如果想在非 TTY 环境直接结束，不往下执行，可以注释掉这行
             fi
-
-            # 在没有 TTY（终端交互环境）时，提示用户需要手动运行 onboarding
-            local onboard_cmd=""
-            onboard_cmd="$(format_onboard_display_command)"
-            ui_info "No TTY; run ${onboard_cmd} to finish setup"
-            return 0
         fi
     fi
 
