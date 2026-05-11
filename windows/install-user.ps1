@@ -11,12 +11,14 @@ $ErrorActionPreference = "Stop"
 
 $script:InstallExitCode = 0
 
+
 function Fail-Install {
     param([int]$Code = 1)
 
     $script:InstallExitCode = $Code
     return $false
 }
+
 
 function Complete-Install {
     param([bool]$Succeeded)
@@ -32,10 +34,11 @@ function Complete-Install {
     throw "OpenClaw installation failed with exit code $($script:InstallExitCode)."
 }
 
+
 function Ask-YesNo {
     param(
-        [string]$Prompt,
-        [string]$Default = "Y"
+        [string]$Prompt,          
+        [string]$Default = "Y"    
     )
     $hint = if ($Default -eq "Y") { "(Y/n)" } else { "(y/N)" }
     $answer = Read-Host "$Prompt $hint"
@@ -43,14 +46,17 @@ function Ask-YesNo {
     return $answer -match '^[Yy]'
 }
 
+
 function Get-ExecutionPolicyStatus {
     $policy = Get-ExecutionPolicy
-
+    
+    
     if ($policy -eq "Restricted" -or $policy -eq "AllSigned") {
-        return @{ Blocked = $true; Policy = $policy }
+        return @{ Blocked = $true; Policy = $policy } 
     }
-    return @{ Blocked = $false; Policy = $policy }
+    return @{ Blocked = $false; Policy = $policy } 
 }
+
 
 function Ensure-ExecutionPolicy {
     $status = Get-ExecutionPolicyStatus
@@ -59,13 +65,13 @@ function Ensure-ExecutionPolicy {
         Write-Host "这会阻止 npm.ps1 等脚本的运行。" -ForegroundColor Yellow
         Write-Host ""
         try {
-
+            
             Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -ErrorAction Stop
             Write-Host "[OK] 已将 PowerShell 执行策略设置为 RemoteSigned" -ForegroundColor Green
             return $true
         }
         catch {
-
+            
             Write-Host "无法自动设置 PowerShell 执行策略" -ForegroundColor Red
             Write-Host ""
             Write-Host "要修复此问题，请运行:" -ForegroundColor Gray
@@ -77,7 +83,7 @@ function Ensure-ExecutionPolicy {
             return $false
         }
     }
-
+    
     return $true
 }
 
@@ -91,6 +97,7 @@ Write-Host "  ║                                                           ║"
 Write-Host "  ║                    猫鼬AI出品                             ║" -ForegroundColor Cyan
 Write-Host "  ╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
+
 
 if ($PSVersionTable.PSVersion.Major -lt 5) {
     Write-Host "Error: PowerShell 5+ required" -ForegroundColor Red
@@ -148,13 +155,16 @@ function Check-Node {
     return $false
 }
 
+
 function Install-Node {
     Write-Host "[*] Installing Node.js..." -ForegroundColor Yellow
 
+    
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Host "  Using winget..." -ForegroundColor Gray
         winget install OpenJS.NodeJS.LTS --source winget --accept-package-agreements --accept-source-agreements
 
+        
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
         if (Check-Node) {
             Write-Host "[OK] Node.js installed via winget" -ForegroundColor Green
@@ -165,15 +175,18 @@ function Install-Node {
         return $false
     }
 
+    
     if (Get-Command choco -ErrorAction SilentlyContinue) {
         Write-Host "  Using Chocolatey..." -ForegroundColor Gray
         choco install nodejs-lts -y
 
+        
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
         Write-Host "[OK] Node.js installed via Chocolatey" -ForegroundColor Green
         return $true
     }
 
+    
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
         Write-Host "  Using Scoop..." -ForegroundColor Gray
         scoop install nodejs-lts
@@ -181,6 +194,7 @@ function Install-Node {
         return $true
     }
 
+    
     Write-Host ""
     Write-Host "无法自动安装 Node.js，请手动安装："
     Write-Host "  1. 点击下载: https://registry.npmmirror.com/-/binary/node/v24.15.0/node-v24.15.0-x64.msi" -ForegroundColor Yellow
@@ -192,6 +206,7 @@ function Install-Node {
     }
     return $false
 }
+
 
 function Set-NpmRegistry {
     $registry = "https://registry.npmmirror.com/"
@@ -207,11 +222,11 @@ function Set-NpmRegistry {
 
 function Check-ExistingOpenClaw {
     if (Get-OpenClawCommandPath) {
-
+        
         Write-Host "[*] Existing OpenClaw installation detected" -ForegroundColor Yellow
         return $true
     }
-
+    
     return $false
 }
 
@@ -224,6 +239,7 @@ function Check-Git {
         return $false
     }
 }
+
 
 function Add-ToProcessPath {
     param(
@@ -243,10 +259,12 @@ function Add-ToProcessPath {
     $env:Path = "$PathEntry;$env:Path"
 }
 
+
 function Get-PortableGitRoot {
     $base = Join-Path $env:LOCALAPPDATA "OpenClaw\deps"
     return (Join-Path $base "portable-git")
 }
+
 
 function Get-PortableGitCommandPath {
     $root = Get-PortableGitRoot
@@ -262,6 +280,7 @@ function Get-PortableGitCommandPath {
     }
     return $null
 }
+
 
 function Use-PortableGitIfPresent {
     $gitExe = Get-PortableGitCommandPath
@@ -284,6 +303,7 @@ function Use-PortableGitIfPresent {
     }
     return $false
 }
+
 
 function Resolve-PortableGitDownload {
     $releaseApi = "https://api.github.com/repos/git-for-windows/git/releases/latest"
@@ -310,6 +330,7 @@ function Resolve-PortableGitDownload {
         Url  = $asset.browser_download_url
     }
 }
+
 
 function Install-PortableGit {
     if (Use-PortableGitIfPresent) {
@@ -360,6 +381,7 @@ function Install-PortableGit {
     Write-Host "[OK] User-local Git ready: $portableVersion" -ForegroundColor Green
 }
 
+
 function Ensure-Git {
     if (Check-Git) { return $true }
     if (Use-PortableGitIfPresent) { return $true }
@@ -395,6 +417,7 @@ function Get-OpenClawCommandPath {
     return $null
 }
 
+
 function Invoke-OpenClawCommand {
     param(
         [Parameter(ValueFromRemainingArguments = $true)]
@@ -408,6 +431,7 @@ function Invoke-OpenClawCommand {
 
     & $commandPath @Arguments
 }
+
 
 function Resolve-CommandPath {
     param(
@@ -425,6 +449,7 @@ function Resolve-CommandPath {
     return $null
 }
 
+
 function Get-NpmCommandPath {
     $path = Resolve-CommandPath -Candidates @("npm.cmd", "npm.exe", "npm")
     if (-not $path) {
@@ -433,13 +458,16 @@ function Get-NpmCommandPath {
     return $path
 }
 
+
 function Get-CorepackCommandPath {
     return (Resolve-CommandPath -Candidates @("corepack.cmd", "corepack.exe", "corepack"))
 }
 
+
 function Get-PnpmCommandPath {
     return (Resolve-CommandPath -Candidates @("pnpm.cmd", "pnpm.exe", "pnpm"))
 }
+
 
 function Get-NpmGlobalBinCandidates {
     param(
@@ -457,6 +485,7 @@ function Get-NpmGlobalBinCandidates {
 
     return $candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 }
+
 
 function Ensure-OpenClawOnPath {
     if (Get-OpenClawCommandPath) {
@@ -500,6 +529,7 @@ function Ensure-OpenClawOnPath {
     return $false
 }
 
+
 function Ensure-Pnpm {
     if (Get-PnpmCommandPath) {
         return
@@ -515,7 +545,7 @@ function Ensure-Pnpm {
             }
         }
         catch {
-
+            
         }
     }
     Write-Host "[*] Installing pnpm..." -ForegroundColor Yellow
@@ -555,6 +585,7 @@ function Resolve-NpmOpenClawInstallSpec {
     return "$PackageName@$trimmedTag"
 }
 
+
 function Install-OpenClaw {
     if ([string]::IsNullOrWhiteSpace($Tag)) {
         $Tag = "latest"
@@ -563,6 +594,7 @@ function Install-OpenClaw {
         return $false
     }
 
+    
     $packageName = "openclaw"
     if ($Tag -eq "beta" -or $Tag -match "^beta\.") {
         $packageName = "openclaw"
@@ -609,6 +641,7 @@ function Install-OpenClaw {
     Write-Host "[OK] OpenClaw 已安装" -ForegroundColor Green
     return $true
 }
+
 
 function Install-OpenClawFromGit {
     param(
@@ -678,6 +711,7 @@ function Install-OpenClawFromGit {
     return $true
 }
 
+
 function Get-LegacyRepoDir {
     if (-not [string]::IsNullOrWhiteSpace($env:OPENCLAW_GIT_DIR)) {
         return $env:OPENCLAW_GIT_DIR
@@ -685,6 +719,7 @@ function Get-LegacyRepoDir {
     $userHome = [Environment]::GetFolderPath("UserProfile")
     return (Join-Path $userHome "openclaw")
 }
+
 
 function Remove-LegacySubmodule {
     param(
@@ -706,10 +741,11 @@ function Run-Doctor {
         Invoke-OpenClawCommand doctor --non-interactive
     }
     catch {
-
+        
     }
     Write-Host "[OK] Migration complete" -ForegroundColor Green
 }
+
 
 function Test-GatewayServiceLoaded {
     try {
@@ -727,6 +763,7 @@ function Test-GatewayServiceLoaded {
     }
     return $false
 }
+
 
 function Refresh-GatewayServiceIfLoaded {
     if (-not (Get-OpenClawCommandPath)) {
@@ -786,6 +823,14 @@ function Test-GatewayHealthy {
         return $false
     }
 }
+
+
+function Test-WindowsSessionElevated {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
 
 function Invoke-OnboardWizard {
     $choiceToApiKeyParam = @{
@@ -881,6 +926,12 @@ function Invoke-OnboardWizard {
     }
 
     Write-Host ""
+    
+    if (-not (Test-WindowsSessionElevated)) {
+        Write-Host "[!] 警告：当前会话未以管理员身份运行。" -ForegroundColor Yellow
+        Write-Host "    若出现 schtasks「拒绝访问」导致 Gateway 网关安装失败，请关闭本窗口后以「管理员身份运行」PowerShell 重试。" -ForegroundColor Yellow
+        Write-Host ""
+    }
     Write-Host "开始执行官方非交互式 onboard 向导，这可能需要几分钟..." -ForegroundColor Cyan
     Write-Host ""
 
@@ -901,6 +952,43 @@ function Invoke-OnboardWizard {
 
     Invoke-OpenClawCommand @onboardArgs
 }
+
+
+function Enable-Hooks {
+    
+    $hooks = @(
+        'session-memory',
+        'compaction-notifier',
+        'boot-md',
+        'command-logger'
+    )
+
+    $failed = @()
+
+    Write-Host "[*] Enabling hooks..." -ForegroundColor Yellow
+    foreach ($name in $hooks) {
+        Write-Host "  Enabling $name..." -ForegroundColor Gray
+        try {
+            Invoke-OpenClawCommand hooks enable $name
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[!] Failed to enable hook '$name' (exit code $LASTEXITCODE)" -ForegroundColor Yellow
+                $failed += $name
+            }
+        }
+        catch {
+            Write-Host "[!] Failed to enable hook '$name': $($_.Exception.Message)" -ForegroundColor Yellow
+            $failed += $name
+        }
+    }
+
+    if ($failed.Count -eq 0) {
+        Write-Host "[OK] All $($hooks.Count) hooks enabled" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[!] $($hooks.Count - $failed.Count)/$($hooks.Count) hooks enabled; failed: $($failed -join ', ')" -ForegroundColor Yellow
+    }
+}
+
 
 function Install-Skills {
     $skills = @(
@@ -945,12 +1033,13 @@ function Install-Skills {
 }
 
 function Main {
-
+    
     if ($InstallMethod -ne "npm" -and $InstallMethod -ne "git") {
         Write-Host "Error: invalid -InstallMethod (use npm or git)." -ForegroundColor Red
         return (Fail-Install -Code 2)
     }
 
+    
     if (-not (Ensure-ExecutionPolicy)) {
         Write-Host ""
         Write-Host "由于执行策略的限制，安装无法继续进行。" -ForegroundColor Red
@@ -975,13 +1064,16 @@ function Main {
 
     Remove-LegacySubmodule -RepoDir $RepoDir
 
+    
     $isUpgrade = Check-ExistingOpenClaw
 
+    
     if (-not (Check-Node)) {
         if (-not (Install-Node)) {
             return (Fail-Install)
         }
 
+        
         if (-not (Check-Node)) {
             Write-Host ""
             Write-Host "Error: Node.js installation may require a terminal restart" -ForegroundColor Red
@@ -990,10 +1082,12 @@ function Main {
         }
     }
 
+    
     Set-NpmRegistry
 
     $finalGitDir = $null
 
+    
     if ($InstallMethod -eq "git") {
         try {
             $npmCommand = Get-NpmCommandPath
@@ -1004,7 +1098,7 @@ function Main {
         }
         catch { }
         $finalGitDir = $GitDir
-
+        
         if (-not (Install-OpenClawFromGit -RepoDir $GitDir -SkipUpdate:$NoGitUpdate)) {
             return (Fail-Install)
         }
@@ -1032,6 +1126,7 @@ function Main {
         Run-Doctor
     }
 
+    
     $installedVersion = $null
     try {
         $installedVersion = (Invoke-OpenClawCommand --version 2>$null).Trim()
@@ -1061,7 +1156,7 @@ function Main {
     Write-Host ""
 
     if ($isUpgrade) {
-
+        
         $updateMessages = @(
             "升级成功！新技能已解锁，不用谢。",
             "代码焕然一新，小龙虾依旧。有没有想我？",
@@ -1071,7 +1166,7 @@ function Main {
         Write-Host ""
     }
     else {
-
+        
         $completionMessages = @(
             "小龙虾到岗，从此你的终端不再一样！",
             "我上线啦，准备一起搞事情吧！",
@@ -1087,6 +1182,7 @@ function Main {
         Write-Host ""
     }
 
+    
     if ($isUpgrade) {
         Write-Host "升级完成，您可以运行 " -NoNewline
         Write-Host "openclaw doctor" -ForegroundColor Cyan -NoNewline
@@ -1102,6 +1198,21 @@ function Main {
         Invoke-OnboardWizard
     }
 
+    
+    if ($isUpgrade) {
+        Write-Host ""
+        if (Ask-YesNo -Prompt "是否启用内置 Hooks（注意：可能会覆盖当前配置）？" -Default "Y") {
+            Write-Host "即将开始启用内置 Hooks..." -ForegroundColor Cyan
+            Enable-Hooks
+        }
+    }
+    else {
+        Write-Host ""
+        Write-Host "即将开始启用内置 Hooks..." -ForegroundColor Cyan
+        Enable-Hooks
+    }
+
+    
     if ($isUpgrade) {
         Write-Host ""
         if (Ask-YesNo -Prompt "是否安装预设 Skills（注意：可能会覆盖当前配置）？" -Default "Y") {
@@ -1117,6 +1228,7 @@ function Main {
 
     return $true
 }
+
 
 $mainResults = @(Main)
 $installSucceeded = $mainResults.Count -gt 0 -and $mainResults[-1] -eq $true

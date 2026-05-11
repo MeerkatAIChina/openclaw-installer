@@ -25,6 +25,9 @@ function globInstallDevPs1() {
     .map((f) => path.join(dir, f));
 }
 
+const uninstallShSrc = path.join(repoRoot, "linux", "uninstall.sh");
+const uninstallPs1Src = path.join(repoRoot, "windows", "uninstall.ps1");
+
 function destNameFromDev(devPath) {
   const base = path.basename(devPath);
   const m = base.match(/^(.+)-dev(\.[A-Za-z0-9]+)$/i);
@@ -138,40 +141,59 @@ function tryShfmt(filePath) {
   }
 }
 
+function buildReleaseShFromSource(srcAbs, distBaseName) {
+  const distDir = path.join(repoRoot, "dist");
+  const raw = fs.readFileSync(srcAbs, "utf8");
+  let body = stripShellWholeLineComments(raw);
+  body = ensureLfOnly(body);
+  body = compressBlankLines(body);
+  if (!body.endsWith("\n")) body += "\n";
+  writeDistRel(distBaseName, body);
+  tryShfmt(path.join(distDir, distBaseName));
+}
+
+function buildReleasePs1FromSource(srcAbs, distBaseName) {
+  const distDir = path.join(repoRoot, "dist");
+  const destAbs = path.join(distDir, distBaseName);
+  const stripScript = path.join(repoRoot, "scripts", "strip-ps1-for-release.ps1");
+  const r = spawnSync(
+    "pwsh",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", stripScript, "-SourcePath", srcAbs, "-DestPath", destAbs],
+    { encoding: "utf8", stdio: "inherit" }
+  );
+  if (r.status !== 0) {
+    process.exit(r.status ?? 1);
+  }
+}
+
 function main() {
-  const shFiles = globInstallDevSh();
-  const psFiles = globInstallDevPs1();
-  if (shFiles.length === 0 && psFiles.length === 0) {
-    process.stderr.write("No install-*-dev scripts found under linux/ or windows/.\n");
+  const shDevFiles = globInstallDevSh();
+  const psDevFiles = globInstallDevPs1();
+  if (shDevFiles.length === 0 || psDevFiles.length === 0) {
+    process.stderr.write(
+      "Require at least one linux/install-*-dev.sh and one windows/install-*-dev.ps1.\n"
+    );
     process.exit(1);
   }
+
+  const shExtras = fs.existsSync(uninstallShSrc) ? [uninstallShSrc] : [];
+  const psExtras = fs.existsSync(uninstallPs1Src) ? [uninstallPs1Src] : [];
 
   const distDir = path.join(repoRoot, "dist");
   fs.mkdirSync(distDir, { recursive: true });
 
-  for (const src of shFiles) {
-    const raw = fs.readFileSync(src, "utf8");
-    let body = stripShellWholeLineComments(raw);
-    body = ensureLfOnly(body);
-    body = compressBlankLines(body);
-    if (!body.endsWith("\n")) body += "\n";
-    const name = destNameFromDev(src);
-    writeDistRel(name, body);
-    tryShfmt(path.join(distDir, name));
+  for (const src of shDevFiles) {
+    buildReleaseShFromSource(src, destNameFromDev(src));
+  }
+  for (const src of shExtras) {
+    buildReleaseShFromSource(src, path.basename(src));
   }
 
-  for (const src of psFiles) {
-    const name = destNameFromDev(src);
-    const destAbs = path.join(distDir, name);
-    const stripScript = path.join(repoRoot, "scripts", "strip-ps1-for-release.ps1");
-    const r = spawnSync(
-      "pwsh",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", stripScript, "-SourcePath", src, "-DestPath", destAbs],
-      { encoding: "utf8", stdio: "inherit" }
-    );
-    if (r.status !== 0) {
-      process.exit(r.status ?? 1);
-    }
+  for (const src of psDevFiles) {
+    buildReleasePs1FromSource(src, destNameFromDev(src));
+  }
+  for (const src of psExtras) {
+    buildReleasePs1FromSource(src, path.basename(src));
   }
 
   console.log("dist/:");
