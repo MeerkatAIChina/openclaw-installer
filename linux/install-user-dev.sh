@@ -2626,7 +2626,7 @@ open_url_in_system_browser() {
                 continue
             fi
             MSYS_NO_PATHCONV=1 WSL_CLI_OPEN_URL="$url" "$cand" -NoProfile -NonInteractive \
-                -ExecutionPolicy Bypass -Command 'Start-Process "$env:WSL_CLI_OPEN_URL"' >/dev/null 2>&1 && return 0
+                -ExecutionPolicy Bypass -Command "Start-Process \"\$env:WSL_CLI_OPEN_URL\"" >/dev/null 2>&1 && return 0
         done
         if [[ -x /mnt/c/Windows/System32/cmd.exe ]]; then
             MSYS2_ARG_CONV_EXCL='*' cmd.exe /c start "" "$url" >/dev/null 2>&1 && return 0
@@ -2934,7 +2934,8 @@ prompt_onboard_model_args() {
         for ((i = 0; i < ${#group_names[@]}; i++)); do
             printf '\n  [%s]\n' "${group_names[$i]}"
             local IFS='|'
-            local -a items=(${group_choices[$i]})
+            local -a items
+            read -r -a items <<< "${group_choices[$i]}"
             unset IFS
             local c
             for c in "${items[@]}"; do
