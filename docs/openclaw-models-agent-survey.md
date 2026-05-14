@@ -39,6 +39,14 @@
 | `models.providers.<id>.request` | 高级 TLS/代理/私网访问等 | 见 1.4 | 未设置 | `config set` |
 | `models.providers.<id>.models` | 模型定义数组 | `ModelDefinition[]` | 必填数组（Schema） | `config set` |
 
+**contextWindow、contextTokens、maxTokens 的说明**
+
+| 字段            | 含义                                                         | 典型用途                                                     |
+| :-------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
+| `contextWindow` | 模型/提供商的上下文窗口规模（token 数，偏「能力/目录」描述） | 标明该模型理论上能容纳多少上下文（输入侧窗口上限的元数据）。 |
+| `contextTokens` | 运行时对上下文的 cap（封顶）                                 | OpenClaw 在跑的时候按这个预算限制「有效上下文」，可故意设得比 `contextWindow` 小，用于控成本、控延迟或与 Agent 侧 `agents.defaults.contextTokens` 等一起收紧。 |
+| `maxTokens`     | 单次生成（模型回复）的 token 上限                            | 对应「这一枪最多生成多少 token」，偏输出长度/API 的 `max_tokens` 类默认，不是「整段对话窗口有多大」。 |
+
 ### 1.3 `models.providers.<id>.models[]`（单模型定义）
 
 | 参数 | 作用 | 可选值 | 默认值 | CLI |
