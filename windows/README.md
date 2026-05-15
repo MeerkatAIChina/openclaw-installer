@@ -39,6 +39,42 @@ iwr -useb 'https://github.com/Zhangyao719/openclaw-installer/releases/download/v
 & ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install-user.ps1').TrimStart([char]0xFEFF))) -AuthChoice moonshot-api-key-cn -Provider moonshot-api-key -ApiKey sh-xxx123
 ```
 
+#### 卸载 OpenClaw
+
+```powershell
+# 1. 先用现有 openclaw 把服务停干净（失败也无所谓，往下走）
+openclaw daemon stop 2>/dev/null
+openclaw daemon uninstall 2>/dev/null
+openclaw gateway stop 2>/dev/null
+
+# 2. 兜底：systemd 用户服务残留
+systemctl --user stop 'openclaw*' 2>/dev/null
+systemctl --user disable 'openclaw*' 2>/dev/null
+rm -f ~/.config/systemd/user/openclaw*.service ~/.config/systemd/user/clawdbot*.service 2>/dev/null
+systemctl --user daemon-reload 2>/dev/null
+
+# 3. 杀掉残留进程
+pkill -f 'openclaw|clawdbot' 2>/dev/null
+
+# 4. 再卸 npm 包和文件
+hash -r
+npm uninstall -g openclaw 2>/dev/null
+rm -f ~/.local/bin/openclaw
+rm -rf ~/.local/lib/node_modules/openclaw ~/.local/lib/node_modules/.openclaw-*
+
+# 5. 删配置 / 状态目录
+rm -rf ~/.openclaw ~/.clawdbot ~/.moltbot ~/.moldbot
+
+# 6. 验证
+type -P openclaw || echo "binary: clean"
+ls -la ~/.local/bin/openclaw 2>&1 | grep -q "No such file" && echo "bin link: clean"
+ls ~/.openclaw 2>&1 | grep -q "No such file" && echo "config: clean"
+systemctl --user list-units --all 'openclaw*' 2>/dev/null | grep -i openclaw || echo "systemd: clean"
+pgrep -fa 'openclaw|clawdbot' || echo "process: clean"
+```
+
+也可以直接使用卸载脚本 `windows/uninstall.ps1`
+
 ## 二、常见问题
 
 ### 为什么脚本不能直接进行 `onboard` 交互向导，但人工输入却可以？

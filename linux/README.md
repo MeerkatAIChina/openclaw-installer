@@ -78,6 +78,8 @@ systemctl --user list-units --all 'openclaw*' 2>/dev/null | grep -i openclaw || 
 pgrep -fa 'openclaw|clawdbot' || echo "process: clean"
 ```
 
+或者直接使用卸载脚本 `linux/uninstall.sh`
+
 ## 二、常见问题
 
 ### WSL 中的问题归纳
