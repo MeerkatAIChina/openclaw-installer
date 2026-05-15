@@ -2898,6 +2898,13 @@ _onboard_choice_to_api_key_param() {
     zai-api-key | zai-coding-global | zai-coding-cn | zai-global | zai-cn) echo "--zai-api-key" ;;
     minimax-global-api | minimax-global-oauth | minimax-cn-oauth | minimax-cn-api) echo "--minimax-api-key" ;;
     openai-codex | openai-api-key) echo "--openai-api-key" ;;
+    deepseek-api-key) echo "--deepseek-api-key" ;;
+    qwen-api-key-cn) echo "--modelstudio-api-key-cn" ;;
+    qwen-api-key) echo "--modelstudio-api-key" ;;
+    qwen-standard-api-key-cn) echo "--modelstudio-standard-api-key-cn" ;;
+    qwen-standard-api-key) echo "--modelstudio-standard-api-key" ;;
+    xiaomi-api-key) echo "--xiaomi-api-key" ;;
+    volcengine-api-key) echo "--volcengine-api-key" ;;
     *) return 1 ;;
     esac
 }
@@ -2916,6 +2923,10 @@ prompt_onboard_model_args() {
         "智谱 (ZAI)"
         "MiniMax"
         "OpenAI"
+        "DeepSeek"
+        "千问"
+        "小米"
+        "火山引擎"
     )
     local -a group_choices=(
         "custom-api-key"
@@ -2924,6 +2935,10 @@ prompt_onboard_model_args() {
         "zai-api-key|zai-coding-global|zai-coding-cn|zai-global|zai-cn"
         "minimax-global-api|minimax-global-oauth|minimax-cn-oauth|minimax-cn-api"
         "openai-codex|openai-api-key"
+        "deepseek-api-key"
+        "qwen-api-key-cn|qwen-api-key|qwen-standard-api-key-cn|qwen-standard-api-key"
+        "xiaomi-api-key"
+        "volcengine-api-key"
     )
 
     local -a all_choices=()

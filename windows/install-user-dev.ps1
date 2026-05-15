@@ -886,21 +886,28 @@ function Test-WindowsSessionElevated {
 # onboard 向导
 function Invoke-OnboardWizard {
     $choiceToApiKeyParam = @{
-        'custom-api-key'       = '--custom-api-key'
-        'moonshot-api-key'     = '--moonshot-api-key'
-        'moonshot-api-key-cn'  = '--moonshot-api-key'
-        'kimi-code-api-key'    = '--kimi-code-api-key'
-        'zai-api-key'          = '--zai-api-key'
-        'zai-coding-global'    = '--zai-api-key'
-        'zai-coding-cn'        = '--zai-api-key'
-        'zai-global'           = '--zai-api-key'
-        'zai-cn'               = '--zai-api-key'
-        'minimax-global-api'   = '--minimax-api-key'
-        'minimax-global-oauth' = '--minimax-api-key'
-        'minimax-cn-oauth'     = '--minimax-api-key'
-        'minimax-cn-api'       = '--minimax-api-key'
-        'openai-codex'         = '--openai-api-key'
-        'openai-api-key'       = '--openai-api-key'
+        'custom-api-key'           = '--custom-api-key'
+        'moonshot-api-key'         = '--moonshot-api-key'
+        'moonshot-api-key-cn'      = '--moonshot-api-key'
+        'kimi-code-api-key'        = '--kimi-code-api-key'
+        'zai-api-key'              = '--zai-api-key'
+        'zai-coding-global'        = '--zai-api-key'
+        'zai-coding-cn'            = '--zai-api-key'
+        'zai-global'               = '--zai-api-key'
+        'zai-cn'                   = '--zai-api-key'
+        'minimax-global-api'       = '--minimax-api-key'
+        'minimax-global-oauth'     = '--minimax-api-key'
+        'minimax-cn-oauth'         = '--minimax-api-key'
+        'minimax-cn-api'           = '--minimax-api-key'
+        'openai-codex'             = '--openai-api-key'
+        'openai-api-key'           = '--openai-api-key'
+        'deepseek-api-key'         = '--deepseek-api-key'
+        'qwen-api-key-cn'          = '--modelstudio-api-key-cn'
+        'qwen-api-key'             = '--modelstudio-api-key'
+        'qwen-standard-api-key-cn' = '--modelstudio-standard-api-key-cn'
+        'qwen-standard-api-key'    = '--modelstudio-standard-api-key'
+        'xiaomi-api-key'           = '--xiaomi-api-key'
+        'volcengine-api-key'       = '--volcengine-api-key'
     }
 
     $groups = [ordered]@{
@@ -910,6 +917,10 @@ function Invoke-OnboardWizard {
         '智谱 (ZAI)'    = @('zai-api-key', 'zai-coding-global', 'zai-coding-cn', 'zai-global', 'zai-cn')
         'MiniMax'     = @('minimax-global-api', 'minimax-global-oauth', 'minimax-cn-oauth', 'minimax-cn-api')
         'OpenAI'      = @('openai-codex', 'openai-api-key')
+        'DeepSeek'    = @('deepseek-api-key')
+        '千问'          = @('qwen-api-key-cn', 'qwen-api-key', 'qwen-standard-api-key-cn', 'qwen-standard-api-key')
+        '小米'          = @('xiaomi-api-key')
+        '火山引擎'        = @('volcengine-api-key')
     }
 
     $allChoices = [System.Collections.Generic.List[string]]::new()
