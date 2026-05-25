@@ -15,7 +15,7 @@ set -euo pipefail
 #                 git: 清理 npm 全局、git clone/pull、ensure_pnpm、ui:build/build、写入 ~/.local/bin/openclaw wrapper
 # 6 收尾       — Stage[3/3]：resolve_openclaw_bin、warn_duplicate_openclaw_global_installs、PATH 缺失警告、refresh_gateway_service_if_loaded
 # 7 装后流程   — 升级/git: run_doctor + plugins update --all；全新: run_bootstrap_onboarding_if_needed / openclaw onboard 接管 TTY
-# 8 结束       — preset hooks(enable_hooks)、preset skills(install_preset_skills)、gateway daemon 检测重启、dashboard、带 token URL 浏览器、show_footer_links
+# 8 结束       — preset hooks(enable_hooks)、preset skills(install_preset_skills)、preset plugins(install_preset_plugins)、gateway daemon 检测重启、dashboard、带 token URL 浏览器、show_footer_links
 
 BOLD='\033[1m'
 ACCENT='\033[38;2;255;77;77m' # coral-bright  #ff4d4d
@@ -1205,6 +1205,10 @@ parse_args() {
             ;;
         --no-git-update)
             GIT_UPDATE=0
+            shift
+            ;;
+        --no-plugins)
+            NO_PLUGINS=1
             shift
             ;;
         *)
@@ -2786,6 +2790,61 @@ install_preset_skills() {
     fi
 }
 
+# 装后：预装常用 plugins（逐个 openclaw plugins install；单次失败仅警告）。
+install_preset_plugins() {
+    local upgrade_install="${1:-false}"
+
+    if [[ "${upgrade_install}" == "true" ]]; then
+        if ! ask_yes_no "Install bundled Plugins? (Warning: this may overwrite your current configuration)" "N"; then
+            return 0
+        fi
+    fi
+
+    local -a plugin_slugs=(
+        "npm:@meerkat-ai/openclaw-mrkhub-plugin"
+    )
+
+    if [[ "${DRY_RUN:-}" == "1" ]]; then
+        ui_section "Preset plugins (dry-run)"
+        local s=""
+        for s in "${plugin_slugs[@]}"; do
+            ui_info "Would run: openclaw plugins install ${s}"
+        done
+        return 0
+    fi
+
+    local claw="${OPENCLAW_BIN:-}"
+    if [[ -z "$claw" ]]; then
+        claw="$(resolve_openclaw_bin || true)"
+    fi
+    if [[ -z "$claw" ]]; then
+        ui_warn "openclaw not on PATH; skipping preset plugins"
+        return 0
+    fi
+
+    ui_section "Installing preset plugins"
+
+    local ok=0
+    local fail=0
+    local -a failed_slugs=()
+    local s=""
+    for s in "${plugin_slugs[@]}"; do
+        if "$claw" plugins install "$s"; then
+            ok=$((ok + 1))
+            ui_info "Plugin installed: ${s}"
+        else
+            fail=$((fail + 1))
+            failed_slugs+=("$s")
+            ui_warn "Failed to install plugin: ${s}"
+        fi
+    done
+    if ((fail == 0)); then
+        ui_success "Preset plugins: ${ok}/${#plugin_slugs[@]} installed"
+    else
+        ui_warn "Preset plugins: ${ok} ok, ${fail} failed — ${failed_slugs[*]}"
+    fi
+}
+
 # 解析 onboarding 工作区路径（默认 ~/.openclaw/workspace 或 profile 后缀）
 resolve_workspace_dir() {
     if [[ -n "${INSTALL_WORKSPACE}" ]]; then
@@ -3539,6 +3598,11 @@ main() {
 
     # ---- 装后 5：预装 skills ----
     install_preset_skills "${is_upgrade}"
+
+    # ---- 装后 5.5：预装 plugins ----
+    if [[ "${NO_PLUGINS:-}" != "1" ]]; then
+        install_preset_plugins "${is_upgrade}"
+    fi
 
     # ---- 装后 6：gateway daemon 已加载时重启一次，确保新版本生效 ----
     if command -v openclaw &>/dev/null; then
