@@ -1,4 +1,4 @@
-﻿# windows/tests/Install-Plugins.Tests.ps1
+# windows/tests/Install-Plugins.Tests.ps1
 Describe "Install-Plugins" {
     BeforeAll {
         $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "../..")
@@ -30,12 +30,9 @@ Describe "Install-Plugins" {
         It "包含 @meerkat-ai/openclaw-mrkhub-plugin" {
             Install-Plugins
 
-            $calls = (Get-MockedCommand Invoke-OpenClawCommand).Calls
-            $calls.Count | Should -BeGreaterThan 0
-            $pluginInstalled = $calls.Args | Where-Object {
-                $_ -join ' ' -match 'npm:@meerkat-ai/openclaw-mrkhub-plugin'
+            Should -Invoke Invoke-OpenClawCommand -Times 1 -Exactly -ParameterFilter {
+                $Arguments -contains 'npm:@meerkat-ai/openclaw-mrkhub-plugin'
             }
-            $pluginInstalled | Should -Not -BeNullOrEmpty
         }
     }
 
@@ -47,8 +44,9 @@ Describe "Install-Plugins" {
 
             Install-Plugins
 
-            $calls = (Get-MockedCommand Invoke-OpenClawCommand).Calls
-            $calls.Count | Should -BeGreaterThan 0
+            Should -Invoke Invoke-OpenClawCommand -Times 1 -Exactly -ParameterFilter {
+                $Arguments -contains 'npm:@meerkat-ai/openclaw-mrkhub-plugin'
+            }
         }
     }
 
@@ -60,8 +58,9 @@ Describe "Install-Plugins" {
 
             Install-Plugins
 
-            $calls = (Get-MockedCommand Invoke-OpenClawCommand).Calls
-            $calls.Count | Should -BeGreaterThan 0
+            Should -Invoke Invoke-OpenClawCommand -Times 1 -Exactly -ParameterFilter {
+                $Arguments -contains 'npm:@meerkat-ai/openclaw-mrkhub-plugin'
+            }
         }
     }
 }

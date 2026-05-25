@@ -12,7 +12,7 @@
 # 2 Git        — 2.1 检测；2.2 进程 PATH；2.3 便携目录与 git.exe；2.4 启用便携；2.5 解析 MinGit；2.6 安装便携；2.7 确保可用
 # 3 命令与 PATH — openclaw/npm/pnpm 路径、调用、全局 bin、补全 PATH、确保 pnpm
 # 4 安装本体   — 4.1 npm 包说明；4.2 npm 全局安装；4.3 Git 源码克隆构建；4.4.1/4.4.2 遗留子模块目录解析与删除；
-# 5 装后       — 5.1 doctor 迁移；5.2 网关服务刷新；5.3 onboard 向导；5.4 启动 hooks； 5.5 预装 Skills（全新安装）；
+# 5 装后       — 5.1 doctor 迁移；5.2 网关服务刷新；5.3 onboard 向导；5.4 启动 hooks； 5.5 预装 Skills；5.6 预装 Plugins（全新安装）；
 # 6 Main       — 主函数
 # 7 Dashboard  — 获取并打开链接
 
@@ -22,7 +22,8 @@ param(
     [string]$InstallMethod = "npm",
     [string]$GitDir,
     [switch]$NoGitUpdate,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$SkipPlugins
 )
 
 $ErrorActionPreference = "Stop"
@@ -1095,6 +1096,38 @@ function Install-Skills {
     }
 }
 
+# 装后：预装常用 plugins（逐个 openclaw plugins install；单次失败仅警告）。
+function Install-Plugins {
+    $plugins = @(
+        'npm:@meerkat-ai/openclaw-mrkhub-plugin'
+    )
+
+    $failed = @()
+
+    Write-Host "[*] Installing Plugins..." -ForegroundColor Yellow
+    foreach ($slug in $plugins) {
+        Write-Host "  Installing $slug..." -ForegroundColor Gray
+        try {
+            Invoke-OpenClawCommand plugins install $slug
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[!] Failed to install plugin '$slug' (exit code $LASTEXITCODE)" -ForegroundColor Yellow
+                $failed += $slug
+            }
+        }
+        catch {
+            Write-Host "[!] Failed to install plugin '$slug': $($_.Exception.Message)" -ForegroundColor Yellow
+            $failed += $slug
+        }
+    }
+
+    if ($failed.Count -eq 0) {
+        Write-Host "[OK] All $($plugins.Count) plugins installed" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[!] $($plugins.Count - $failed.Count)/$($plugins.Count) plugins installed; failed: $($failed -join ', ')" -ForegroundColor Yellow
+    }
+}
+
 # -----------------------------------------------------------------------------
 # 6 Main：总控（串联前面的步骤，都在此依次执行）
 # -----------------------------------------------------------------------------
@@ -1293,6 +1326,22 @@ function Main {
         Write-Host ""
         Write-Host "即将开始预安装常用 Skills..." -ForegroundColor Cyan
         Install-Skills
+    }
+
+    # Process 5.6: 预装 Plugins
+    if (-not $SkipPlugins) {
+        if ($isUpgrade) {
+            Write-Host ""
+            if (Ask-YesNo -Prompt "是否安装预设 Plugins（注意：可能会覆盖当前配置）？" -Default "Y") {
+                Write-Host "即将开始预安装常用 Plugins..." -ForegroundColor Cyan
+                Install-Plugins
+            }
+        }
+        else {
+            Write-Host ""
+            Write-Host "即将开始预安装常用 Plugins..." -ForegroundColor Cyan
+            Install-Plugins
+        }
     }
 
     return $true
