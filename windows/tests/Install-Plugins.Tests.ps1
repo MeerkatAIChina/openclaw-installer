@@ -1,4 +1,4 @@
-# windows/tests/Install-Plugins.Tests.ps1
+﻿# windows/tests/Install-Plugins.Tests.ps1
 Describe "Install-Plugins" {
     BeforeAll {
         $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "../..")
