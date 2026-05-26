@@ -62,7 +62,12 @@ jobs:
           set -euo pipefail
           tag="${GITHUB_REF_NAME:?}"
           ls -la dist/
-          gh release create "$tag" --generate-notes dist/*
+          notes="$(git tag -l --format='%(contents)' "$tag")"
+          if [ -n "${notes:-}" ]; then
+            gh release create "$tag" --notes "$notes" dist/*
+          else
+            gh release create "$tag" --generate-notes dist/*
+          fi
 
       - name: Upload to Alibaba Cloud OSS
         env:
