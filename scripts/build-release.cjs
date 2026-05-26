@@ -34,7 +34,9 @@ function destNameFromDev(devPath) {
   if (!m || !m[1].startsWith("install-")) {
     throw new Error(`Unexpected dev script name: ${base}`);
   }
-  return `${m[1]}${m[2]}`;
+  const ext = m[2].toLowerCase();
+  const platform = ext === ".ps1" ? "windows" : "linux";
+  return `${m[1]}-${platform}${m[2]}`;
 }
 
 /** Bash: strip whole-line comments; keep shebang on line 1; keep lines starting with #! anywhere; respect heredocs. */

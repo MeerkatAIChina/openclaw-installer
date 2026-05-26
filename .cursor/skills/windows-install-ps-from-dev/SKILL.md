@@ -1,6 +1,6 @@
 ---
 name: windows-install-ps-from-dev
-description: 将 windows/install-user-dev.ps1 和 windows/install-script-dev.ps1 分别生成去注释版本 windows/install-user.ps1 和 windows/install-script.ps1。当需要同步或重新生成不含注释的发布脚本时使用。
+description: 将 windows/install-user-dev.ps1 和 windows/install-script-dev.ps1 分别生成去注释版本 windows/install-user-windows.ps1 和 windows/install-script-windows.ps1。当需要同步或重新生成不含注释的发布脚本时使用。
 disable-model-invocation: true
 ---
 
@@ -12,8 +12,8 @@ disable-model-invocation: true
 
 | 源文件 | 目标文件 |
 |--------|----------|
-| `windows/install-user-dev.ps1` | `windows/install-user.ps1` |
-| `windows/install-script-dev.ps1` | `windows/install-script.ps1` |
+| `windows/install-user-dev.ps1` | `windows/install-user-windows.ps1` |
+| `windows/install-script-dev.ps1` | `windows/install-script-windows.ps1` |
 
 ## 执行步骤
 

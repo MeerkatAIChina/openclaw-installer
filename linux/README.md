@@ -6,14 +6,14 @@
 
 ```bash
 # github 链接,注意 tag 版本
-curl -fsSL https://github.com/Zhangyao719/openclaw-installer/releases/download/<tag>/install-user.sh | bash
+curl -fsSL https://github.com/Zhangyao719/openclaw-installer/releases/download/<tag>/install-user-linux.sh | bash
 ```
 
 你也可以手动把脚本下载下来，然后在本机终端上执行：
 
 ```bash
 # 进入脚本所在的下载目录中
-bash ./install-user.sh </dev/null
+bash ./install-user-linux.sh </dev/null
 ```
 
 ### 开发者
@@ -37,7 +37,7 @@ bash ./install-user-dev.sh </dev/null
 node scripts/build-release.cjs
 ```
 
-会扫描 `linux/install-*-dev.sh`、`windows/install-*-dev.ps1`，生成到 `dist/`（`install-<name>.sh` / `.ps1`）。
+会扫描 `linux/install-*-dev.sh`、`windows/install-*-dev.ps1`，生成到 `dist/`（`install-<name>-linux.sh` / `install-<name>-windows.ps1`）。
 
 依赖简述
 

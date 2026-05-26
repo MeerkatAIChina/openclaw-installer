@@ -4,15 +4,15 @@
 
 >  我们在官网安装脚本的基础上，做了自定义的二次开发，既保留了部分功能，又针对国内的小白用户拓展了一些功能。
 
-我们提供两种脚本：`install-user.ps1（面向用户）` 和 `install-script.ps1（面向开发者）`。
+我们提供两种脚本：`install-user-windows.ps1（面向用户）` 和 `install-script-windows.ps1（面向开发者）`。
 
 ### 🎏两种脚本的异同
 
-1.  `install-user.ps1`：有交互引导页面，对新用户更有好。
+1.  `install-user-windows.ps1`：有交互引导页面，对新用户更有好。
 
-2. `install-script.ps1`：直接通过 `-AuthChoice`、`-Provider`、`-ApiKey`三个参数传递模型参数直接部署运行，更方便。
+2. `install-script-windows.ps1`：直接通过 `-AuthChoice`、`-Provider`、`-ApiKey`三个参数传递模型参数直接部署运行，更方便。
 
-3. `install-user.ps1`安装成功后会自动使用浏览器打开URL，`install-script.ps1` 不会。
+3. `install-user-windows.ps1`安装成功后会自动使用浏览器打开URL，`install-script-windows.ps1` 不会。
 
 4. 两者都会调用如下 `onboard`命令：
 
@@ -33,10 +33,10 @@
 
 ```powershell
 # 使用交互安装脚本
-iwr -useb 'https://github.com/Zhangyao719/openclaw-installer/releases/download/v0.1.1/install-user.ps1' -OutFile $env:TEMP\oc.ps1; powershell.exe -nop -ep bypass -f $env:TEMP\oc.ps1
+iwr -useb 'https://github.com/Zhangyao719/openclaw-installer/releases/download/v0.1.1/install-user-windows.ps1' -OutFile $env:TEMP\oc.ps1; powershell.exe -nop -ep bypass -f $env:TEMP\oc.ps1
 
 # 使用非交互脚本（适合服务器直接跑）
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install-user.ps1').TrimStart([char]0xFEFF))) -AuthChoice moonshot-api-key-cn -Provider moonshot-api-key -ApiKey sh-xxx123
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/Zhangyao719/openclaw-installer/main/windows/install-user-dev.ps1').TrimStart([char]0xFEFF))) -AuthChoice moonshot-api-key-cn -Provider moonshot-api-key -ApiKey sh-xxx123
 ```
 
 #### 卸载 OpenClaw
