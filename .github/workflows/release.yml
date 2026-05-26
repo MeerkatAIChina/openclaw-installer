@@ -63,3 +63,27 @@ jobs:
           tag="${GITHUB_REF_NAME:?}"
           ls -la dist/
           gh release create "$tag" --generate-notes dist/*
+
+      - name: Upload to Alibaba Cloud OSS
+        env:
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_REGION: ${{ secrets.OSS_REGION }}
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME:?}"
+
+          OSSUTIL_URL="https://gosspublic.alicdn.com/ossutil/v2/2.3.0/ossutil-2.3.0-linux-amd64.zip"
+          curl -fsSL -o /tmp/ossutil.zip "$OSSUTIL_URL"
+          unzip -o /tmp/ossutil.zip -d /tmp/ossutil
+          chmod +x /tmp/ossutil/ossutil
+
+          /tmp/ossutil/ossutil cp -r -f -e "$OSS_ENDPOINT" dist/ "oss://${OSS_BUCKET}/scripts/${tag}/"
+
+          echo "=== OSS 下载地址 ==="
+          for f in dist/*; do
+            filename="$(basename "$f")"
+            echo "https://${OSS_BUCKET}.${OSS_ENDPOINT}/scripts/${tag}/${filename}"
+          done
