@@ -39,6 +39,14 @@ function destNameFromDev(devPath) {
   return `${m[1]}-${platform}${m[2]}`;
 }
 
+function destNameWithPlatform(filePath) {
+  const base = path.basename(filePath);
+  const ext = path.extname(base).toLowerCase();
+  const nameWithoutExt = base.slice(0, -ext.length);
+  const platform = ext === ".ps1" ? "windows" : "linux";
+  return `${nameWithoutExt}-${platform}${ext}`;
+}
+
 /** Bash: strip whole-line comments; keep shebang on line 1; keep lines starting with #! anywhere; respect heredocs. */
 function stripShellWholeLineComments(src) {
   const normalized = src.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -188,14 +196,14 @@ function main() {
     buildReleaseShFromSource(src, destNameFromDev(src));
   }
   for (const src of shExtras) {
-    buildReleaseShFromSource(src, path.basename(src));
+    buildReleaseShFromSource(src, destNameWithPlatform(src));
   }
 
   for (const src of psDevFiles) {
     buildReleasePs1FromSource(src, destNameFromDev(src));
   }
   for (const src of psExtras) {
-    buildReleasePs1FromSource(src, path.basename(src));
+    buildReleasePs1FromSource(src, destNameWithPlatform(src));
   }
 
   console.log("dist/:");
