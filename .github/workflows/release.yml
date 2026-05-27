@@ -73,10 +73,19 @@ jobs:
             echo "检测到预发布版本标记，将设置为 Pre-release"
           fi
 
-          # 读取 annotated tag 的附注信息（使用 git for-each-ref 更可靠）
-          notes="$(git for-each-ref --format='%(contents)' "refs/tags/$tag" 2>/dev/null || true)"
+          # 读取 annotated tag 的附注信息（使用 GitHub API 更可靠）
+          notes=""
+          tag_info=$(gh api "repos/${GITHUB_REPOSITORY}/git/refs/tags/$tag" 2>/dev/null || echo "")
+          if [ -n "$tag_info" ]; then
+            tag_sha=$(echo "$tag_info" | jq -r '.object.sha // empty')
+            tag_type=$(echo "$tag_info" | jq -r '.object.type // empty')
+            if [ "$tag_type" = "tag" ] && [ -n "$tag_sha" ]; then
+              # annotated tag，获取 tag 对象的 message
+              notes=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$tag_sha" 2>/dev/null | jq -r '.message // empty')
+            fi
+          fi
 
-          if [ -n "${notes:-}" ] && [ "$notes" != "$tag" ]; then
+          if [ -n "${notes:-}" ]; then
             echo "使用 tag 附注作为 release 描述"
             gh release create "$tag" $prerelease_flag --notes "$notes" dist/*
           else
