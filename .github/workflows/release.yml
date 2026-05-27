@@ -87,10 +87,10 @@ jobs:
 
           if [ -n "${notes:-}" ]; then
             echo "使用 tag 附注作为 release 描述"
-            gh release create "$tag" $prerelease_flag --notes "$notes" dist/*
+            gh release create "$tag" --title "$tag" $prerelease_flag --notes "$notes" dist/*
           else
             echo "未找到 tag 附注，使用自动生成描述"
-            gh release create "$tag" $prerelease_flag --generate-notes dist/*
+            gh release create "$tag" --title "$tag" $prerelease_flag --generate-notes dist/*
           fi
 
       - name: Upload to Alibaba Cloud OSS
