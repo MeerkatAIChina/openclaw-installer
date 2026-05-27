@@ -82,7 +82,7 @@ jobs:
 
           OSSUTIL_URL="https://gosspublic.alicdn.com/ossutil/v2/2.3.0/ossutil-2.3.0-linux-amd64.zip"
           curl -fsSL -o /tmp/ossutil.zip "$OSSUTIL_URL"
-          unzip -o /tmp/ossutil.zip -d /tmp/ossutil
+          unzip -oj /tmp/ossutil.zip -d /tmp/ossutil
           chmod +x /tmp/ossutil/ossutil
 
           /tmp/ossutil/ossutil cp -r -f -e "$OSS_ENDPOINT" dist/ "oss://${OSS_BUCKET}/scripts/${tag}/"
