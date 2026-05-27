@@ -73,14 +73,8 @@ jobs:
             echo "检测到预发布版本标记，将设置为 Pre-release"
           fi
 
-          # 读取 annotated tag 的附注信息
-          echo "=== Debug: 尝试读取 tag $tag 的附注 ==="
-          git tag -l --format='%(contents)' "$tag" || echo "命令失败"
-          echo "=== Debug: 列出所有 tags ==="
-          git tag -l
-          notes="$(git tag -l --format='%(contents)' "$tag" 2>/dev/null || true)"
-          echo "=== Debug: notes 内容 ==="
-          echo "$notes"
+          # 读取 annotated tag 的附注信息（使用 git for-each-ref 更可靠）
+          notes="$(git for-each-ref --format='%(contents)' "refs/tags/$tag" 2>/dev/null || true)"
 
           if [ -n "${notes:-}" ] && [ "$notes" != "$tag" ]; then
             echo "使用 tag 附注作为 release 描述"
