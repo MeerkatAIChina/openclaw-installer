@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -62,11 +65,23 @@ jobs:
           set -euo pipefail
           tag="${GITHUB_REF_NAME:?}"
           ls -la dist/
-          notes="$(git tag -l --format='%(contents)' "$tag")"
-          if [ -n "${notes:-}" ]; then
-            gh release create "$tag" --notes "$notes" dist/*
+
+          # 判断是否为预发布版本
+          prerelease_flag=""
+          if [[ "$tag" =~ -(alpha|beta|rc) ]]; then
+            prerelease_flag="--prerelease"
+            echo "检测到预发布版本标记，将设置为 Pre-release"
+          fi
+
+          # 读取 annotated tag 的附注信息
+          notes="$(git tag -l --format='%(contents)' "$tag" 2>/dev/null || true)"
+
+          if [ -n "${notes:-}" ] && [ "$notes" != "$tag" ]; then
+            echo "使用 tag 附注作为 release 描述"
+            gh release create "$tag" $prerelease_flag --notes "$notes" dist/*
           else
-            gh release create "$tag" --generate-notes dist/*
+            echo "未找到 tag 附注，使用自动生成描述"
+            gh release create "$tag" $prerelease_flag --generate-notes dist/*
           fi
 
       - name: Upload to Alibaba Cloud OSS
